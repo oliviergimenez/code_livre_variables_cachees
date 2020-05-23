@@ -1,0 +1,26 @@
+---
+title: "Modèles à facteurs latents: un outil de réduction de dimension pour les modèles de distribution d’espèce joints"
+author: "D. Bystrova et collègues"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+

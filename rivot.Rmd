@@ -1,0 +1,26 @@
+---
+title: "Modéliser la dynamique de plusieurs populations pour comprendre les mécanismes de la variabilité spatio-temporelle des traits de vie"
+author: "E. Rivot et ses collègues"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+

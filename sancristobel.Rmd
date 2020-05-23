@@ -1,0 +1,26 @@
+---
+title: "Structural Equation Models et Partial Least Squares - Path Modeling pour une modélisation schématique d'un écosystème"
+author: "M. San Cristobal et collègues"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+

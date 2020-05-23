@@ -6,5 +6,15 @@ title: " "
 
 Annexes R
 
-- [Creating websites in R](rmarkdown_websites_tutorial.html)
-- [Survival analysis in R](survival_analysis_in_r_tutorial.html)
+- [Inférence de processus écologiques via la reconstruction de parentés : couplage d’informations génétiques, spatiales et phénotypiques](klein.html)
+- [Mise évidence des processus éco-évolutifs en milieu naturel : le cas des compromis entre traits d’histoire de vie](buoro.html)
+- [Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés](gimenez.html)
+- [Etudier la dynamique d’une population par des approches mécanistico-statistiques](bonnefon.html)
+- [Modéliser la dynamique de plusieurs populations pour comprendre les mécanismes de la variabilité spatio-temporelle des traits de vie](rivot.html)
+- [Apprentissage de la structure d'une population à partir d'un modèle de mélange pour données génétiques individuelles géoréférencées](guillot.html)
+- [Des chaines de Markov cachées couplées pour estimer la colonisation et la survie dans une métapopulation de plantes annuelles avec dormance](cheptou.html)
+- [Modèles à blocs latents pour la détection de structure dans les réseaux écologiques](aubert.html)
+- [La régression linéaire généralisée sur composantes supervisées et ses extensions](mortier.html)
+- [Modèles à facteurs latents: un outil de réduction de dimension pour les modèles de distribution d’espèce joints](bystrova.html)
+- [Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance](chiquet.html)
+- [Structural Equation Models et Partial Least Squares - Path Modeling pour une modélisation schématique d'un écosystème](sancristobel.html)

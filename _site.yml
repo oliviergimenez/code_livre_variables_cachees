@@ -1,12 +1,12 @@
-name: ""
+name: "vaRcacheesecologie"
 output_dir: "."
 navbar:
   title: "Approche Statistiques pour les variables cachées en écologie "
   left:
     - text: "coordonné par Nathalie Peyrard et Olivier Gimenez"
-      href: http://www.emilyzabor.com
+      href: https://oliviergimenez.github.io/
     - icon: fa-github fa-lg
-      href: http://github.com/zabore/tutorials
+      href: https://github.com/oliviergimenez/code_livre_variables_cachees
 output:
   html_document:
     theme: paper

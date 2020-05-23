@@ -1,0 +1,26 @@
+---
+title: "La régression linéaire généralisée sur composantes supervisées et ses extensions"
+author: "F. Mortier, X. Bry, C. Trottier, G. Cornu, J. Chauvet"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+

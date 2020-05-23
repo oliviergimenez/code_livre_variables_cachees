@@ -9,9 +9,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
+<meta name="author" content="J. Aubert, P. Barbillon, S. Donnet, V. Miele" />
 
 
-<title>index.utf8</title>
+<title>Modèles à blocs latents pour la détection de structure dans les réseaux écologiques</title>
 
 <script src="site_libs/header-attrs-2.1/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -20,6 +21,9 @@
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
@@ -252,6 +256,69 @@ $(document).ready(function () {
 
 
 
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
 
 </head>
 
@@ -259,6 +326,16 @@ $(document).ready(function () {
 
 
 <div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
 
 
 
@@ -276,10 +353,10 @@ $(document).ready(function () {
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
-  <a href="https://oliviergimenez.github.io/">coordonné par Nathalie Peyrard et Olivier Gimenez</a>
+  <a href="http://www.emilyzabor.com">coordonné par Nathalie Peyrard et Olivier Gimenez</a>
 </li>
 <li>
-  <a href="https://github.com/oliviergimenez/code_livre_variables_cachees">
+  <a href="http://github.com/zabore/tutorials">
     <span class="fa fa-github fa-lg"></span>
      
   </a>
@@ -296,29 +373,32 @@ $(document).ready(function () {
 
 
 
+<h1 class="title toc-ignore">Modèles à blocs latents pour la détection de structure dans les réseaux écologiques</h1>
+<h4 class="author">J. Aubert, P. Barbillon, S. Donnet, V. Miele</h4>
 
 </div>
 
 
-<p><br></p>
-<p>Annexes R</p>
-<ul>
-<li><a href="klein.html">Inférence de processus écologiques via la reconstruction de parentés : couplage d’informations génétiques, spatiales et phénotypiques</a></li>
-<li><a href="buoro.html">Mise évidence des processus éco-évolutifs en milieu naturel : le cas des compromis entre traits d’histoire de vie</a></li>
-<li><a href="gimenez.html">Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés</a></li>
-<li><a href="bonnefon.html">Etudier la dynamique d’une population par des approches mécanistico-statistiques</a></li>
-<li><a href="rivot.html">Modéliser la dynamique de plusieurs populations pour comprendre les mécanismes de la variabilité spatio-temporelle des traits de vie</a></li>
-<li><a href="guillot.html">Apprentissage de la structure d’une population à partir d’un modèle de mélange pour données génétiques individuelles géoréférencées</a></li>
-<li><a href="cheptou.html">Des chaines de Markov cachées couplées pour estimer la colonisation et la survie dans une métapopulation de plantes annuelles avec dormance</a></li>
-<li><a href="aubert.html">Modèles à blocs latents pour la détection de structure dans les réseaux écologiques</a></li>
-<li><a href="mortier.html">La régression linéaire généralisée sur composantes supervisées et ses extensions</a></li>
-<li><a href="bystrova.html">Modèles à facteurs latents: un outil de réduction de dimension pour les modèles de distribution d’espèce joints</a></li>
-<li><a href="chiquet.html">Le modèle Poisson log-normal: un cadre générique pour l’analyse des distributions joint d’abondance</a></li>
-<li><a href="sancristobel.html">Structural Equation Models et Partial Least Squares - Path Modeling pour une modélisation schématique d’un écosystème</a></li>
-</ul>
+<p>Du code R qui va bien.</p>
+<div id="trajectoire" class="section level2">
+<h2>Trajectoire</h2>
+<p>Les ingrédients</p>
+<ol style="list-style-type: decimal">
+<li>Huile d’olive</li>
+<li>Citron</li>
+<li>Sel</li>
+<li>Poivre</li>
+</ol>
+</div>
+<div id="mouvements" class="section level2">
+<h2>Mouvements</h2>
+<p>Au minimum il faut :</p>
+</div>
 
 
 
+</div>
+</div>
 
 </div>
 
@@ -351,6 +431,32 @@ $(document).ready(function () {
 
 <!-- code folding -->
 
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
 <script>

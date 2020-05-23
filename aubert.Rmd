@@ -1,0 +1,26 @@
+---
+title: "Modèles à blocs latents pour la détection de structure dans les réseaux écologiques"
+author: "J. Aubert, P. Barbillon, S. Donnet, V. Miele"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+

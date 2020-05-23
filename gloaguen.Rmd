@@ -1,0 +1,26 @@
+---
+title: "Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation"
+author: "P. GLoaguen, M.-P. Etienne"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: TRUE
+---
+
+Du code R qui va bien.
+
+
+## Trajectoire
+
+Les ingrédients
+
+1. Huile d'olive
+2. Citron
+3. Sel
+4. Poivre
+
+
+## Mouvements
+
+Au minimum il faut :
+
