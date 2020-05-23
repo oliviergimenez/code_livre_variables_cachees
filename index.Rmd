@@ -1,5 +1,6 @@
 ---
 title: " "
+pagetitle: "Approche statistiques pour les variables cachées en écologie"
 ---
 
 <br>
