@@ -1,6 +1,6 @@
 ---
 title: "Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance"
-author: "J. Choquet et collègues"
+author: "J. Chiquet et collègues"
 output: 
     html_document:
         toc: TRUE
