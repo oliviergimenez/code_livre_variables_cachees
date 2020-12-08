@@ -18,7 +18,7 @@ library(optimr)
 
 # 1. Load and transform data 
 
-## 1.1 Load the observations for the 7 study species
+## 1.1 Load observations for the 7 study species
 
 ```{r}
 set.seed(1)
