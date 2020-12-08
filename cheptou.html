@@ -14,7 +14,7 @@
 
 <title>Des chaines de Markov cachées couplées pour estimer la colonisation et la survie dans une métapopulation de plantes annuelles avec dormance</title>
 
-<script src="site_libs/header-attrs-2.1/header-attrs.js"></script>
+<script src="site_libs/header-attrs-2.5/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/paper.min.css" rel="stylesheet" />
@@ -27,8 +27,19 @@
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -379,20 +390,165 @@ div.tocify {
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<pre class="r"><code>library(&#39;doParallel&#39;)</code></pre>
+<div id="load-and-transform-data" class="section level1">
+<h1>1. Load and transform data</h1>
+<div id="load-the-original-observations-for-the-7-species-of-the-study" class="section level2">
+<h2>1.1 Load the original observations for the 7 species of the study</h2>
+<pre class="r"><code>set.seed(1)
+#Setting the number of states 
+#K observable states
+K=5
+#I hidden states
+I=5</code></pre>
+<p>Getting the raw data for the 7 species of the study (density per square meter) DATA SET REFERENCE Cordeau, S., Adeux, G., Meunier, D., Strbik, F., Dugué, F., Busset, H., Vieren, E., Louviot, G., &amp; Munier-Jolain, N. (2020). Weed density of 7 major weeds in the long-term integrated weed management cropping system experiment of Dijon-Epoisses (2000-2017), <a href="https://doi.org/10.15454/M5P3LM" class="uri">https://doi.org/10.15454/M5P3LM</a>. Portail Data INRAE.</p>
+<pre class="r"><code># save(data,file=&quot;data_epoisse.Rdata&quot;)
+load(&quot;dat/data_epoisse.Rdata&quot;)
+# raw data : data[[species]][patch,year]</code></pre>
+<pre class="r"><code>dtstate2=list()
+oo=1
+classS=list()
+for(o in 1:7){
+  dtstate2[[oo]]=array(rep(0,17*90),dim=c(90,17))
+  classS[[oo]]=rep(0,K-2)
+  oo=oo+1
+}
+names(classS)&lt;-names(data)
+names(dtstate2)&lt;-names(data)</code></pre>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="define-the-bounds-of-the-abundance-classes-of-standing-flora-and-transform-raw-data-into-abundance-classes-for-each-species" class="section level2">
+<h2>1.2 Define the bounds of the abundance classes of standing flora and transform raw data into abundance classes, for each species</h2>
+<pre class="r"><code>oo=1
+size_of_class=rep(0,length(names(dtstate2)))
+
+for( o in names(dtstate2)){
+  difference= max(log(data[[o]][which(data[[o]]!=0)]+1))
+  interval=difference/4
+  size_of_class[oo]=interval
+  for(i in 1:90){
+    for(j in 1:17){
+      
+      
+      if(data[[o]][i,j]==0){dtstate2[[oo]][i,j]=1
+      }else if(log(data[[o]][i,j]+1)&lt;interval){dtstate2[[oo]][i,j]=2}
+      else if(log(data[[o]][i,j]+1)&lt;interval*2){dtstate2[[oo]][i,j]=3}
+      else if(log(data[[o]][i,j]+1)&lt;interval*3){dtstate2[[oo]][i,j]=4}
+      else if(log(data[[o]][i,j]+1)&gt;=interval*3){dtstate2[[oo]][i,j]=5}
+      
+    }
+  }
+  oo=oo+1
+}
+names(size_of_class)&lt;-names(dtstate2)
+
+size_of_class=size_of_class[c(&quot;ALOMY&quot;,&quot;CHEAL&quot;,&quot;SOLNI&quot;,&#39;POLCO&#39;,&#39;AETCY&#39;,&#39;GALAP&#39;,&#39;POLAV&#39;)]
+
+size_class_no_log=matrix(rep(0,5*7),nrow=7)
+rownames(size_class_no_log)&lt;-c(&quot;ALOMY&quot;,&quot;CHEAL&quot;,&quot;SOLNI&quot;,&#39;POLCO&#39;,&#39;AETCY&#39;,&#39;GALAP&#39;,&#39;POLAV&#39;)
+for(q in 1:7){
+  
+  size_class_no_log[q,4]=exp(size_of_class[q]*3-1)
+  size_class_no_log[q,3]=exp(size_of_class[q]*2-1)
+  size_class_no_log[q,2]=exp(size_of_class[q]-1)
+}
+
+size_class_no_log[,5]=rep(10000,7)
+
+# dtstate2 gives the states (abundance class of standing flora) for each species in each patch for each year. 
+# dtstate2[[species]][patch,year]</code></pre>
+<pre class="r"><code>### Load the data if you didn&#39;t run the transformation into abundance classes
+# save(dtstate2,file=&#39;classes_uniforme_PIC_log(+1).Rdata&#39;)
+load(&#39;dat/classes_uniforme_PIC_log(+1).Rdata&#39;)</code></pre>
+</div>
+<div id="load-the-distances-between-the-patches-and-the-crop-types" class="section level2">
+<h2>1.3 Load the distances between the patches, and the crop types</h2>
+<pre class="r"><code>#loading cultd
+#cultd gives the crop type for each patch each year between winter and summer.
+#1=winter 2=summer 
+load(&#39;dat/culture_epoisse_binaire.Rdata&#39;)
+
+#loading diszon
+load(&#39;dat/distance_entre_les_patchs.Rdata&#39;)
+
+#missing data in patchs 64 and 74
+index_patch_with_missing_info=c(64,71)</code></pre>
+</div>
+</div>
+<div id="compute-spatial-correlation-between-patchs-to-build-the-neighbourhood" class="section level1">
+<h1>2. Compute spatial correlation between patchs (to build the neighbourhood)</h1>
+<p>You can directly go at the end of step 2 and load the results from Rdata files.</p>
+<pre class="r"><code>diszone2=diszone[-index_patch_with_missing_info,-index_patch_with_missing_info]
+
+correlation_results=list()
+
+for(speci in c(&quot;ALOMY&quot;,&quot;CHEAL&quot;,&quot;SOLNI&quot;,&#39;POLCO&#39;,&#39;AETCY&#39;,&#39;GALAP&#39;,&#39;POLAV&#39;)){
+  
+
+
+keepcor=array(rep(0,88*88),dim=c(88,88))
+corecol=array(rep(0,88*16*88),dim=c(16,88,88))
+nbr=0
+
+
+data1=data[[speci]][-index_patch_with_missing_info,]
+
+for(k in 1:88){
+  corecol[,,k]=t(data1[,2:17])
+  corecol[,k,k]=t(data1[k,1:16])
+  
+  keepcor[k,]=cor(corecol[,,k])[k,]
+  
+}
+for(i in 1:88){
+  for(j in 1:88){
+    
+   
+    
+    
+    if(is.na(keepcor[i,j])){keepcor[i,j]=0}
+    
+    
+    
+  }}
+
+for(i in 1:88){
+  for(j in 1:88){
+    if(i&gt;j){diszone2[i,j]=-1}
+  }}
+
+ordr=sort(diszone2)
+l=1
+
+corki=list()
+k=1
+
+while(l&lt;length(ordr)){
+  if(l==1||ordr[l]!=ordr[l-1]){
+   
+    corki[[k]]=c(0,0)
+    leschamps=which(ordr[l]==diszone2,arr.ind=TRUE)
+    
+    dd=dim(which(ordr[l]==diszone2,arr.ind=TRUE))[1]
+   
+    cumm=0
+    for(oo in 1:dd ){
+     
+      cumm= keepcor[leschamps[oo,1],leschamps[oo,2]] +cumm + keepcor[leschamps[oo,2],leschamps[oo,1]]
+      
+    }
+
+    corki[[k]]=c(cumm/(2*dd),ordr[l])
+    names(corki[[k]])&lt;-c(&#39;mean correlation&#39;,&#39;between patches distance&#39;)
+    k=k+1
+    
+    
+  }else{}
+  
+  l=l+1
+  
+}
+correlation_results[[speci]]&lt;-corki
+}</code></pre>
 </div>
 
 
@@ -406,7 +562,7 @@ div.tocify {
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
@@ -445,7 +601,7 @@ $(document).ready(function ()  {
       theme: "bootstrap3",
       context: '.toc-content',
       hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
       },
       ignoreSelector: ".toc-ignore",
       scrollTo: 0
