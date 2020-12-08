@@ -12,12 +12,13 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 ```{r}
-library('doParallel')
+library(doParallel)
+library(optimr)
 ```
 
 # 1. Load and transform data 
 
-## 1.1 Load the original observations for the 7 species of the study
+## 1.1 Load the observations for the 7 study species
 
 ```{r}
 set.seed(1)
@@ -28,9 +29,7 @@ K=5
 I=5
 ```
 
-Getting the raw data for the 7 species of the study (density per square meter)
-DATA SET REFERENCE
-Cordeau, S., Adeux, G., Meunier, D., Strbik, F., Dugué, F., Busset, H., Vieren, E., Louviot, G., & Munier-Jolain, N. (2020). Weed density of 7 major weeds in the long-term integrated weed management cropping system experiment of Dijon-Epoisses (2000-2017), https://doi.org/10.15454/M5P3LM. Portail Data INRAE.
+Getting the raw data for the 7 species of the study (density per square meter). Data are from Cordeau, S., Adeux, G., Meunier, D., Strbik, F., Dugué, F., Busset, H., Vieren, E., Louviot, G., & Munier-Jolain, N. (2020). Weed density of 7 major weeds in the long-term integrated weed management cropping system experiment of Dijon-Epoisses (2000-2017), https://doi.org/10.15454/M5P3LM. Portail Data INRAE.
 
 ```{r}
 # save(data,file="data_epoisse.Rdata")
@@ -52,8 +51,7 @@ names(classS)<-names(data)
 names(dtstate2)<-names(data)
 ```
 
-
-## 1.2 Define the  bounds of the abundance classes of standing flora and transform raw data into abundance classes, for each species 
+## 1.2 Define the bounds of the abundance classes of standing flora and transform raw data into abundance classes, for each species 
 
 ```{r}
 oo=1
@@ -198,4 +196,404 @@ while(l<length(ordr)){
 correlation_results[[speci]]<-corki
 }
 ```
+
+Don't pay attention to the warnings. The warnings appear because we have less and less data when distance increases so we have a standard deviation of 0 sometimes. 
+
+```{r}
+suitcor<-list()
+suitdist<-list()
+plotlist<-list()
+#fast plotting of the correlation results
+for(o in c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV') ){ 
+  for(i in 1: 50){
+    suitcor[i]<- correlation_results[[o]][[i]][1]
+    suitdist[i]<- correlation_results[[o]][[i]][2]
+  }
+
+  plot(suitdist[2:30],suitcor[2:30],type='l',xlab='distance',ylab=c('correlation'),main=c(o))
+}
+```
+
+Load the data if you didn't ran the correlations computation
+
+```{r}
+#save(correlation_results,file="correlation_results.Rdata")
+load(file="dat/correlation_results.Rdata")
+```
+
+
+# 3. Estimation of MHMMDF model
+
+Running time is long, 2-4 days ! You can directly go at the end of step 3 and load the results from Rdata files.
+
+```{r}
+#code used for the estimation of the MHMMDF model
+source('code/EM-MHMM-DF-moy-inter.R')
+```
+
+```{r eval=FALSE}
+#running estimations in parallel
+nbr=3
+#3 cores
+registerDoParallel(nbr)
+
+diszone3=diszone[-index_patch_with_missing_info,-index_patch_with_missing_info]
+
+cultd3=cultd[-index_patch_with_missing_info,]
+
+dtstate9=list()
+#missing data in patchs  index_patch_with_missing_info
+for( o in names(dtstate2)){
+  dtstate9[[o]]=dtstate2[[o]][-index_patch_with_missing_info,]
+}
+
+
+#only 88 patchs as we deleted 2 due to missing data
+CC=88
+etatA9=list()
+for(o in c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')){
+  etatA9[[o]]=array(rep(0,17*88),dim=c(88,17))
+  for(c in 1:CC){
+    
+    etatA9[[o]][c,]=field_to_vect_dist(c,dtstate9[[o]],K,diszone3)}}
+
+#etatA9 gives the neighbors states 
+
+#two estimations:  one with culture effect, the other one without
+p = 100 #number max of EM iterations
+for(variable_para_cult in 1:2)
+{
+ACSP3=list()
+if(variable_para_cult==1){ culture_des_champs=matrix(rep(1, dim(cultd3)[1]* dim(cultd3)[2]), dim(cultd3))}else{ culture_des_champs=cultd3}
+
+for(o in c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')){
+  difsim=foreach(i=1:8) %dopar% EM_cult_dist_zi_neg(dtstate9[[o]][,1:16],etatA9[[o]][,1:16],CC,K,I,p,culture_des_champs[,1:16],culture_des_champs[,17],diszone3)
+  print(o)
+  #EM_cult_dist_zi_neg is the function used taking a long time
+  vrai=-Inf
+ 
+  for( j in 1:8){
+    
+    if(as.vector(difsim[[j]]$Vrai[2]) > vrai)
+    {
+      ACSP3[[o]]=difsim[[j]]
+      vrai=difsim[[j]]$Vrai[2]
+    }
+  }
+}
+if(variable_para_cult==1){
+  ACSP_nocult=ACSP3
+}else{ ACSP_cult=ACSP3 }}
+```
+
+Save the results of model parameters estimates (nu, mu and tau)
+```{r}
+#save(ACSP_cult,file="EstimateurMHMMDF_cult_25_02_2020.Rdata")
+#save(ACSP_nocult,file="EstimateurMHMMDF_25_02_2020.Rdata")
+```
+
+```{r eval=FALSE}
+ACSP=ACSP_cult
+ACSP=ACSP_nocult
+```
+
+Load the data if you didn't ran the parameters estimation
+
+```{r}
+load(file='dat/EstimateurMHMMDF_cult_25_02_2020.Rdata')
+load(file='dat/EstimateurMHMMDF_25_02_2020.Rdata')
+```
+
+ACSP_cult contains the estimates of the MHMM-DF model with crop seasonality. ACSP_cult is used to compute (with step 4) the values in the table 'Tableau des probabilités de  survie  et de  sortie  de  dormance  pour  le modèle MHMM-DF qui tient compte de la saison de la culture locale'. 
+
+ACSP_nocult contains the estimates of the MHMM-DF model without crop seasonality. ACSP_nocult is used to compute (with step 4) the values in  the table 'Tableau des probabilités de survie, de colonisation et de sortie de dormance pour le modèle non spatialisé et pour le MHMM-DF'
+
+# 4. Calculate germination, seed survival, colonisation
+
+Run time slow 1 day ! You can directly go at the end of step 4 and load the results from Rdata files.
+
+```{r}
+Estimateur_cult=ACSP_cult
+Estimateur=ACSP_nocult
+```
+
+```{r eval = FALSE}
+N = 100 # number of time steps in one simulation
+
+set.seed(1)
+#simulating the species trajectories across 17 years 100 times to get frequencies 
+#used to calculate the ecological parameter from the model parameters 
+#(germination, seed survival, colonisation) 
+#running time is long because 7 species with 3 sets of parameters (winter, summer, none)
+#for 17 years done 100 times 
+for(w in 1:2){
+    if(w== 1){
+        ACSP = Estimateur_cult}
+    else{
+        ACSP = Estimateur}
+    
+    nombrecol=dim(ACSP[[1]]$paramestim$estimalpha)[2]
+    
+    lengspecie = length(c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV'))
+    
+    freqX=array(rep(0,5*lengspecie*nombrecol),dim=c(lengspecie,5,nombrecol))
+    freqY=array(rep(0,5*lengspecie*nombrecol),dim=c(lengspecie,5,nombrecol))
+    rownames(freqX)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    colnames(freqX)<-c('extinction','etat 2','etat 3','etat 4','etat 5')
+    
+    freqXX=array(rep(0,5*lengspecie*nombrecol),dim=c(lengspecie,5,nombrecol))
+    freqY=array(rep(0,5*lengspecie*nombrecol),dim=c(lengspecie,5,nombrecol))
+    rownames(freqXX)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    colnames(freqXX)<-c('extinction','etat 2','etat 3','etat 4','etat 5')
+    
+    
+    rownames(freqY)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    colnames(freqY)<-c('extinction','etat 2','etat 3','etat 4','etat 5')
+    
+    for(hivete in 1 : nombrecol){
+        print(hivete)
+        for(z in 1:100){
+            if(z%%10==0){print(z)}
+            for(e in 1:lengspecie){
+                
+                C=88
+                phi=ZIphi(ACSP[[e]]$paramestim$estimbeta[,hivete],I,K)
+                A2=funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)
+                pi=funcpi(ACSP[[e]]$paramestim$estimgamma,I)
+                dist=diszone3
+                
+                for(q in 1:20){
+                    
+                    X= array(rep(0,C*(N+1)),dim=c(C,N+1))
+                    Y= array(rep(0,C*(N+1)),dim=c(C,N))
+                    #simulation with A2
+                    t=runif(1)
+                    X[,1]=length(which(cumsum(pi)<t))+1
+                    
+                    for(i in 1:N){
+                        for(c in 1:C){
+                            l= runif(1)
+                            
+                            if(l<phi[X[c,i],1]){ Y[c,i]=1
+                            } else if(l <phi[X[c,i],1]+ phi[X[c,i],2]){ Y[c,i]=2
+                            } else if(l <phi[X[c,i],1]+ phi[X[c,i],2]+ phi[X[c,i],3]){ Y[c,i]=3
+                            } else if(l <phi[X[c,i],1]+ phi[X[c,i],2]+phi[X[c,i],3]+phi[X[c,i],4]){ Y[c,i]=4
+                            } else { Y[c,i]=5}  
+                        }
+                        for(c in 1:C){
+                            f=field_to_vect_dist(c,Y[,i],K,dist)
+                            R=  runif(1)
+                            
+                            
+                            if(R<A2[X[c,i],1,f]){ X[c,i+1]=1
+                            } else if(R <A2[X[c,i],1,f]+ A2[X[c,i],2,f]){ X[c,i+1]=2
+                            } else if(R <A2[X[c,i],1,f]+ A2[X[c,i],2,f]+ A2[X[c,i],3,f]){ X[c,i+1]=3
+                            } else if(R <A2[X[c,i],1,f]+ A2[X[c,i],2,f]+A2[X[c,i],3,f]+A2[X[c,i],4,f]){ X[c,i+1]=4
+                            } else{ X[c,i+1]=5}  
+                            
+                        }
+                        
+                        
+                    }
+                    for(i in 1:N){
+                        y0=which(Y[,i]==1)
+                        for(c in y0){
+                            
+                            
+                            if(X[c,i]==1){
+                                freqY[e,1,hivete]=freqY[e,1,hivete]+length(which(field_to_vect_dist(c,Y[,i],K,dist)%%K==1))
+                                freqY[e,2,hivete]=freqY[e,2,hivete]+length(which(field_to_vect_dist(c,Y[,i],K,dist)%%K==2))
+                                freqY[e,3,hivete]=freqY[e,3,hivete]+length(which(field_to_vect_dist(c,Y[,i],K,dist)%%K==3))
+                                freqY[e,4,hivete]=freqY[e,4,hivete]+length(which(field_to_vect_dist(c,Y[,i],K,dist)%%K==4))
+                                freqY[e,5,hivete]=freqY[e,5,hivete]+length(which(field_to_vect_dist(c,Y[,i],K,dist)%%K==0))}
+                            
+                            if(field_to_vect_dist(c,Y[,i],K,dist)%%K==1){
+                                freqXX[e,1,hivete]=freqXX[e,1,hivete]+length(which(X[c,i]==1))
+                                freqXX[e,2,hivete]=freqXX[e,2,hivete]+length(which(X[c,i]==2))
+                                freqXX[e,3,hivete]=freqXX[e,3,hivete]+length(which(X[c,i]==3))
+                                freqXX[e,4,hivete]=freqXX[e,4,hivete]+length(which(X[c,i]==4))
+                                freqXX[e,5,hivete]=freqXX[e,5,hivete]+length(which(X[c,i]==5))}
+                        }
+                        
+                    }
+                    freqX[e,1,hivete]=freqX[e,1,hivete]+length(which(X==1))
+                    freqX[e,2,hivete]=freqX[e,2,hivete]+length(which(X==2))
+                    freqX[e,3,hivete]=freqX[e,3,hivete]+length(which(X==3))
+                    freqX[e,4,hivete]=freqX[e,4,hivete]+length(which(X==4))
+                    freqX[e,5,hivete]=freqX[e,5,hivete]+length(which(X==5))
+                    
+                    
+                    
+                    
+                }
+            }}}
+    
+    zziii<-list()
+    AAAAAAQ<-list()
+    AAAAAAQQ<-list()
+    for(po in 1 : nombrecol){
+        zziii[[po]]=(freqX[,,po]/rowSums(freqX[,-1,po]))[,-1]
+        AAAAAAQ[[po]]= (freqX[,,po]/rowSums(freqX[,-1,po]))[,-1]
+        AAAAAAQQ[[po]]= (freqX[,,po]/rowSums(freqX[,-1,po]))
+        
+        
+    }
+    survi=array(rep(0,lengspecie*nombrecol),dim=c(lengspecie,nombrecol)) 
+    
+    colon_moy=array(rep(0,lengspecie*nombrecol),dim=c(lengspecie,nombrecol)) 
+    colon=array(rep(0,lengspecie*nombrecol),dim=c(lengspecie,nombrecol)) 
+    floreleve=array(rep(0,lengspecie*nombrecol),dim=c(lengspecie,nombrecol)) 
+    rownames(colon)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    rownames(colon_moy)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    rownames(floreleve)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    probY=array(rep(0,lengspecie*5*nombrecol),dim=c(lengspecie,5,nombrecol))
+    rownames(probY)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    eAAAAAAQQ=array(rep(0,lengspecie*4*nombrecol),dim=c(lengspecie,4,nombrecol))
+    
+    
+    rownames(survi)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+    if(nombrecol==2 ){ 
+        colnames(survi)<-c('Winter','Summer')
+        colnames(colon)<-c('Winter','Summer')
+        colnames(colon_moy)<-c('Winter','Summer')
+        colnames(floreleve)<-c('Winter','Summer')
+    }
+    else{}
+```
+    
+Once the simulations are done we can calculate the seed survival, the colonisation and the germination
+    
+```{r eval = FALSE}
+    for(hivete in 1 : nombrecol){
+        
+        for(e in 1 : lengspecie){
+            
+            
+            C=88
+            zziii[[hivete]][e,]=ZIphi(ACSP[[e]]$paramestim$estimbeta[,hivete],I,K)[-1,(-2:-5)]
+            AAAAAAQ[[hivete]][e,]= funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)[-1,(-2:-5),1]
+            survi[e,hivete]=(1-((diag(AAAAAAQ[[hivete]]%*%t((freqXX[,,hivete]/rowSums(freqXX[,-1,hivete]))[,-1]))))/(funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)[1,1,1]))[e]
+            
+            AAAAAAQQ[[hivete]][e,]= funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)[1,1,1:5]
+            colon_moy[e,hivete]=(1-(diag(AAAAAAQQ[[hivete]]%*%t((freqY[,,hivete]/rowSums(freqY[,,hivete]))))))[e]
+            
+            floreleve[e,hivete]= (1-  (diag(zziii[[hivete]]%*%t(freqX[,-1,hivete]/rowSums(freqX[,-1,hivete])))))[e]
+            
+            probY[e,,hivete]=(freqX[,,hivete]/rowSums(freqX[,,hivete]))[e,]%*%ZIphi(ACSP[[e]]$paramestim$estimbeta[,hivete],I,K)
+            
+            eAAAAAAQQ[e,,hivete]= funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)[1,(-2:-5),2:5]
+            colon[e,hivete]=(1-(diag(eAAAAAAQQ[,,hivete]%*%t((freqY[,,hivete]/rowSums(freqY[,-1,hivete]))[,-1]/(funcA_moy(ACSP[[e]]$paramestim$estimalpha[,hivete],I,K,C)[1,1,1])))))[e]
+            
+        }}
+    
+    if(nombrecol==2 ){ 
+        results_culture<-list()
+        results_culture$seed_survival<-survi
+        results_culture$colonisation_voisin<-colon
+        results_culture$colonisation_moy<-colon_moy
+        results_culture$germination<-floreleve
+        results_culture$probY<-probY
+        results_culture$eAAAAAAQQ<-eAAAAAAQQ
+        results_culture$AAAAAAQ<-AAAAAAQ
+        results_culture$zziii<-zziii
+        results_culture$AAAAAAQQ<-AAAAAAQQ
+        results_culture$freqX<-freqX
+        results_culture$freqXX<-freqXX
+        results_culture$freqY<-freqY
+        #save(results_culture,file="EstimateurMHMMDF_ecoparams_cult_25_02_2020.Rdata")
+        load(file="dat/EstimateurMHMMDF_ecoparams_cult_25_02_2020.Rdata")
+    }else{
+        results_no_cult<-list()
+        results_no_cult$seed_survival<-survi
+        results_no_cult$colonisation_voisin<-colon
+        results_no_cult$colonisation_moy<-colon_moy
+        results_no_cult$germination<-floreleve
+        results_no_cult$probY<-probY
+        results_no_cult$eAAAAAAQQ<-eAAAAAAQQ
+        results_no_cult$AAAAAAQ<-AAAAAAQ
+        results_no_cult$zziii<-zziii
+        results_no_cult$AAAAAAQQ<-AAAAAAQQ
+        results_no_cult$freqX<-freqX
+        results_no_cult$freqXX<-freqXX
+        results_no_cult$freqY<-freqY
+        #save(results_no_cult,file="EstimateurMHMMDF_ecoparams_25_02_2020.Rdata")
+        load(file="dat/EstimateurMHMMDF_ecoparams_25_02_2020.Rdata")
+    }
+```
+
+ 
+Load the data if you didn't ran the parameters estimation
+```{r}
+load(file="dat/EstimateurMHMMDF_ecoparams_25_02_2020.Rdata")
+load(file="dat/EstimateurMHMMDF_ecoparams_cult_25_02_2020.Rdata")
+```
+
+results_culture gives the germination, seed survival, and colonisation for the MHMM-DF model with crop seasonality. results_culture is used in the table 'Tableau des probabilités de survie et de sortie de dormance pour le modèle MHMM-DF qui tient compte de la saison de la culture locale'. 
+
+results_no_cult gives the germination, seed survival, and colonisation for the MHMM-DF model without crop seasonality. results_no_cult is used in the table 'Tableau des probabilités de survie, de colonisation et de sortie de dormance pour le modèle non spatialisé et pour le MHMM-DF'.
+
+
+# 5. Calculating germination, seed survival and colonisation with Pluntz's model
+
+Running time is fast 1 min ! You can directly go at the end of step 5 and load the results from Rdata files.
+
+```{r}
+## Load Mathieu Pluntz's estimation code
+source('code/Markov chain parameters functions.R')
+source('code/EM functions.R')
+```
+
+```{r}
+set.seed(1)
+
+
+done=list()
+
+d=1
+for(sp in names(dtstate2)){
+  done[[sp]]=list()
+  k=1
+  for(cc in 1 : 88){
+    if(cc%%9!=0){
+      temp= dtstate2[[d]][cc,]
+      temp[which(dtstate2[[d]][cc,]>1)]=1
+      temp[which(dtstate2[[d]][cc,]==1)]=0
+      done[[sp]][[k]]=temp
+      k=k+1
+    }
+  }
+  d=d+1
+}
+
+estBI90=list()
+
+for(sp in c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')){
+  estBI90[[sp]]=list()
+  estBI90[[sp]]=EMestimation(done[[sp]],nIterations = 250)
+}
+
+mtrix3=array(rep(0,7*3),dim=c(7,3))
+colnames(mtrix3)<-c('g','c','s')
+rownames(mtrix3)<-c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')
+k=1
+
+for(sp in c("ALOMY","CHEAL","SOLNI",'POLCO','AETCY','GALAP','POLAV')){
+  if(sp=="PLALA"){}else{
+    mtrix3[k,1]= estBI90[[sp]]$param$g
+    mtrix3[k,2]= estBI90[[sp]]$param$c
+    mtrix3[k,3]= estBI90[[sp]]$param$s
+   }
+  k=k+1
+}
+```
+
+Load the data if you didn't ran the parameters estimation
+
+```{r}
+#save(mtrix3,file="EstimateurPluntz_ecoparams_25_02_2020.Rdata")
+load(file="dat/EstimateurPluntz_ecoparams_25_02_2020.Rdata")
+mtrix3
+```
+
+mtrix3  gives the germination, seed survival and colonisation for species using Pluntz's model. mtrix3 is used in table 'Tableau des probabilités de survie, de colonisation et de sortie de dormance pour le modèle non spatialisé et pour le MHMM-DF'.
 
