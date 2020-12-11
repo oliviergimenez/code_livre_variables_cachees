@@ -9,12 +9,12 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="D. Bystrova et collègues" />
+<meta name="author" content="D. Bystrova, G. Poggiato, J. Arbel, W. Thuiller" />
 
 
-<title>Modèles à facteurs latents: un outil de réduction de dimension pour les modèles de distribution d’espèce joints</title>
+<title>Modèles à facteurs latents, un outil de réduction de dimension pour les modèles de distribution d’espèce joints</title>
 
-<script src="site_libs/header-attrs-2.1/header-attrs.js"></script>
+<script src="site_libs/header-attrs-2.5/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/paper.min.css" rel="stylesheet" />
@@ -27,8 +27,19 @@
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -373,26 +384,261 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Modèles à facteurs latents: un outil de réduction de dimension pour les modèles de distribution d’espèce joints</h1>
-<h4 class="author">D. Bystrova et collègues</h4>
+<h1 class="title toc-ignore">Modèles à facteurs latents, un outil de réduction de dimension pour les modèles de distribution d’espèce joints</h1>
+<h4 class="author">D. Bystrova, G. Poggiato, J. Arbel, W. Thuiller</h4>
 
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>We present hereafter the code that we used to implement the case study that we presented in our chapter. The data are being collected within ORCHAMP, a long-term observatory of mountain ecosystemss, and have been published and studied by Martinez et al. 2020. Here, we study the response of plant species to climate, the physico-chemistry properties and the microbial activities of the soil. We applied latent factor models to a selection of 44 plant species over 99 sites, and selected Growing Degree Days, (GDD, the annual sum of average daily degrees above zero), the total potential exoenzymatic activity (total EEA, the sum of all measured exoenzyme activities), soil pH and the ratio between soil carbon and nitrogen (soil C/N) as covariates for the model. To analyse the dataset, we used the R package Hmsc (Tikhonov et al. 2019,Tikhonov et al. 2020). This package makes inference on the parameters of the models by sampling for the posterior through MCMC sampling. Notice that the compiled version proposed is obtained with a few MCMC iterations only, and the figures are not the same ones of the chapter. To obtain the same results, one should increase the number of MCMC samples. We present hereafter the commented code that we used in our case study. The results and the motivations are fully described in our chapter.</p>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="data-preparation" class="section level2">
+<h2>Data preparation</h2>
+<p>First we need to load and prepare our data. We need a matrix containing the value of the environmental covariates at each site, as well as one matrix containing species observed occurrences at each site.</p>
+<pre class="r"><code>#Required libraries
+library(Hmsc)
+library(corrplot)
+library(ggplot2)
+library(knitr)
+library(wesanderson)
+library(gridExtra)
+library(pROC)
+library(BiodiversityR)
+library(dismo)
+
+#Load environmental covariates. It&#39;s a site x covariate matrix. Each row name is the name of the site (with ORCHAMP abbreviations)
+load(file = &quot;dat/Env_data.Rdata&quot;)
+
+#Number of columns of the environmental data (1 is for the additional column of 1s for the intercept)
+np=ncol(ENV)+1
+
+#Load species data. It&#39;s a site x species matrix. Each column name is the short name of species. See file &quot;dat/Speciesnames_short.csv&quot; for the complete species names.
+load(&quot;dat/Sp_data.Rdata&quot;)
+
+#Number of species
+nsp=ncol(Y)</code></pre>
+</div>
+<div id="model-fit" class="section level2">
+<h2>Model fit</h2>
+<p>We define the multivariate random effect that we described in the chapter, the formula and we call the Hmsc function.We then set the MCMC sampling parameters, and sample using the sampleMCMC function.</p>
+<pre class="r"><code>#Multivariate random effect definition
+studyDesign = data.frame(sample = as.factor(1:nrow(ENV)))
+rL = HmscRandomLevel(units = studyDesign$sample)
+
+#Formula definition
+XFormula=~ENV$pH+ENV$soil_C_N+ENV$Tot_EEA+ENV$GDD.2
+
+#Definition of the model
+m = Hmsc(Y = Y, XData = ENV, XFormula = XFormula, studyDesign = studyDesign, ranLevels = list(sample = rL),distr=&quot;probit&quot;)
+
+#MCMC parameters and sampling
+thin = 10
+samples = 1000
+transient = 500
+nChains = 2
+verbose = 0
+m = sampleMcmc(m, thin = thin, samples = samples, transient = transient,
+                      nChains = nChains, nParallel = nChains,verbose = verbose)</code></pre>
+</div>
+<div id="convergence-assessment" class="section level2">
+<h2>Convergence assessment</h2>
+<p>To validate the convergence of the model, we compute some convergence metrics. To do so, we convert the Hmsc model m to a coda object. Using the R package coda, we can easily compute all the metrics we need. Here, we plot the effective sample as well as the potential scale reduction factor for both the regression coefficient matrix B and the residual correlation matrix Sigma.</p>
+<pre class="r"><code>mpost = convertToCodaObject(m)</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/unnamed-chunk-2-1.png" alt="Effective sample size (top panel) and potential scale reduction factor (bot-tom panel) for the correlation matrix Sigma (left panel) and the regression coefficientsB (rigth panel)." width="672" />
+<p class="caption">
+Effective sample size (top panel) and potential scale reduction factor (bot-tom panel) for the correlation matrix Sigma (left panel) and the regression coefficientsB (rigth panel).
+</p>
+</div>
+</div>
+<div id="explanatory-power-of-the-model" class="section level2">
+<h2>Explanatory power of the model</h2>
+<p>We analyze how well the model can predict the observed data by computing RMSE,TSS and AUC on the observed data.</p>
+<pre class="r"><code>#Compute predicted values
+preds = computePredictedValues(m)
+#Compute RMSE and AUC
+MF = evaluateModelFit(hM=m, predY=preds)
+
+#Compute TSS
+post_mean_preds = data.frame(apply(preds,c(1,2), mean))
+
+TSS = vector()
+for (i in 1:nsp){
+                  e = evaluate(p=post_mean_preds[which(Y[,i]==1),i], a=post_mean_preds[which(Y[,i]==0),i])
+                  index=which.max(e@TPR+e@TNR-1)
+                  TSS[i]=e@TPR[index]+e@TNR[index]-1
+}</code></pre>
+<p>##Cross validation and predictive power of the model We compute the same metrics of above (RMSE,TSS,AUC) in a 2-fold cross validation, to analyze how well the model can predict on data that he was not fitted on.</p>
+<pre class="r"><code>#Create partition (2 folds)
+partition = createPartition(m, nfolds = 2)
+#Do cross-validation (2 folds)
+preds_espece_CV = computePredictedValues(m, partition = partition,verbose=0)</code></pre>
+<pre><code>## Cross-validation, fold 1 out of 2
+## Computing chain 1
+## Computing chain 2
+## Cross-validation, fold 2 out of 2
+## Computing chain 1
+## Computing chain 2</code></pre>
+<pre class="r"><code>#Compute AUC and RMSE in cross validation
+CV = evaluateModelFit(hM = m, predY = preds_espece_CV)
+
+#Compute TSS in cross validation
+CV_post_mean_preds = data.frame(apply(preds_espece_CV,c(1,2), mean))
+
+CV_AUC = CV$AUC
+
+TSS_CV = vector()
+for (i in 1:nsp){
+e = evaluate(p=CV_post_mean_preds[which(Y[,i]==1),i], a=CV_post_mean_preds[which(Y[,i]==0),i])
+index=which.max(e@TPR+e@TNR-1)
+TSS_CV[i]=e@TPR[index]+e@TNR[index]-1
+}</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/plotGoF-1.png" alt="Distribution of TSS and RMSE score across species for in-sample pre-diction (red) and 2-fold cross-validation (blue)." width="672" />
+<p class="caption">
+Distribution of TSS and RMSE score across species for in-sample pre-diction (red) and 2-fold cross-validation (blue).
+</p>
+</div>
+</div>
+<div id="regression-coefficients" class="section level2">
+<h2>Regression coefficients</h2>
+<p>We compute and plot here the significant regression coefficients</p>
+<pre class="r"><code>#Compute regression coefficients
+postBeta = getPostEstimate(m, parName=&quot;Beta&quot;)
+
+#Plot regression coefficients (only those whose 90% credible interval does not overlap zero)
+plotBeta(m, post=postBeta, param=&quot;Support&quot;, supportLevel = 0.9,cex = c(.35,.4,.5),spNamesNumbers = c(T, F),covNamesNumbers = c(F,F))</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/B-1.png" alt="Posterior support values for species regression coefficients. Red if thebounds of the 90% credible interval are both positive, white if the credible interval overlaps 0 and blue if both bounds are negative" width="672" />
+<p class="caption">
+Posterior support values for species regression coefficients. Red if thebounds of the 90% credible interval are both positive, white if the credible interval overlaps 0 and blue if both bounds are negative
+</p>
+</div>
+</div>
+<div id="residual-correlation-matrix" class="section level2">
+<h2>Residual correlation matrix</h2>
+<p>We compute and plot here the significant elements of the residual correlation matrix.</p>
+<pre class="r"><code>#Compute the residual correlation matrix
+OmegaCor = computeAssociations(m)
+
+#Plot residual correlation matrix (only the elements whose 90% credible interval does not overlap zero)
+supportLevel = 0.95
+toPlot = ((OmegaCor[[1]]$support&gt;supportLevel)
+          + (OmegaCor[[1]]$support&lt;(1-supportLevel))&gt;0)*OmegaCor[[1]]$mean
+
+corrplot(toPlot, method = &quot;color&quot;, col=colorRampPalette(c(&quot;blue&quot;,&quot;white&quot;,&quot;red&quot;))(200), 
+         title=paste(&quot;Species associations matrix&quot;), mar=c(0,0,1,0), type=&quot;lower&quot;,order = &quot;hclust&quot;, tl.cex=0.7,diag=F,tl.col = &quot;black&quot;)</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/Sigma-1.png" alt=" The residual correlation matrix. Only significant values (i.e.95% credible interval do not overlap zero) are shown" width="672" />
+<p class="caption">
+The residual correlation matrix. Only significant values (i.e.95% credible interval do not overlap zero) are shown
+</p>
+</div>
+</div>
+<div id="ordination" class="section level2">
+<h2>Ordination</h2>
+<pre class="r"><code>#Gets the estimates of latent factors and latent loadings
+etaPost = getPostEstimate(m, &quot;Eta&quot;)
+lambdaPost=getPostEstimate(m, &quot;Lambda&quot;)
+
+#Biplot
+biPlot(m, etaPost = etaPost, lambdaPost=lambdaPost, factors=c(1,2),colors=c(&quot;blue&quot;,&quot;red&quot;))</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/ordination-1.png" alt="Model based ordination analysis. The two latent variables can be seen as missing covariates, and the position of species (black triangle) on the plot the way species respond to those missing covariates. Species close in the the latent variable species are positively correlated and viceversa." width="672" />
+<p class="caption">
+Model based ordination analysis. The two latent variables can be seen as missing covariates, and the position of species (black triangle) on the plot the way species respond to those missing covariates. Species close in the the latent variable species are positively correlated and viceversa.
+</p>
+</div>
+</div>
+<div id="include-habitat" class="section level2">
+<h2>Include habitat</h2>
+<p>We now include habitat as a covariate. “Forest” tells us whether a site is forest (“1”) or grassland (“0”). We therefore include such a variable in the matrix of the environmental variable, we re-fit the model, and plot its residual ordination.</p>
+<pre class="r"><code># Load environmental data with forest as an additional column (0 if grassland, 1 if forest)
+load(file=&quot;dat/EnvFor_data.Rdata&quot;)
+
+# As above, set model parameters and run the MCMC sampler
+studyDesign = data.frame(sample = as.factor(1:nrow(ENV_forest))) #Multivariate random effect
+rL = HmscRandomLevel(units = studyDesign$sample)
+
+XFormula=~ENV_forest$pH+ENV_forest$soil_C_N+ENV_forest$Tot_EEA+ENV_forest$GDD.2+ENV_forest$Forest
+
+m_forest = Hmsc(Y = Y, XData = ENV_forest, XFormula = XFormula, studyDesign = studyDesign, ranLevels = list(sample = rL))
+
+thin = 10
+samples = 1000
+transient = 500
+nChains = 2
+verbose = 0
+m_forest = sampleMcmc(m_forest, thin = thin, samples = samples, transient = transient,
+                      nChains = nChains, nParallel = nChains,verbose = verbose)
+
+# Get latent factor and loading
+etaPost = getPostEstimate(m_forest, &quot;Eta&quot;)
+lambdaPost=getPostEstimate(m_forest, &quot;Lambda&quot;)
+
+# Plot
+biPlot(m_forest, etaPost = etaPost, lambdaPost=lambdaPost, factors=c(1,2))</code></pre>
+<div class="figure">
+<img src="bystrova_files/figure-html/ordinationforest-1.png" alt="Model based ordination analysis, as above, but when we include the habitat as an additional covariate of the mode." width="672" />
+<p class="caption">
+Model based ordination analysis, as above, but when we include the habitat as an additional covariate of the mode.
+</p>
+</div>
+</div>
+<div id="conditional-prediction-in-cross-validation" class="section level2">
+<h2>Conditional prediction in Cross validation</h2>
+<p>Finally, we compute conditional prediction. Since the prediction ability are more important than the explanotary ones, we compute conditional prediction is Cross Validation (CV).</p>
+<pre class="r"><code>#Create two folds partition
+partition_espece = createPartition(m, nfolds = 2)
+
+#Partition on species, to compute conditional prediction. We condition on Festuca violacea, species number 12
+cond_preds_espece_CV_fest = computePredictedValues(m, partition = partition_espece,partition.sp = c(rep(1,times=11),2,rep(1,32)),verbose=0)</code></pre>
+<pre><code>## Cross-validation, fold 1 out of 2
+## Computing chain 1
+## Computing chain 2
+## Cross-validation, fold 2 out of 2
+## Computing chain 1
+## Computing chain 2</code></pre>
+<pre class="r"><code>#Compute AUC and RMSE conditionally on Festuca Violacea, in cross validation
+AUC_cond_CV_fest = evaluateModelFit(hM=m, predY=cond_preds_espece_CV_fest)$AUC
+
+#Compute TSS conditionally on Festuca Violacea, in cross validation
+mean_cond_preds_espece_CV_fest  = data.frame(apply(cond_preds_espece_CV_fest,c(1,2), mean))
+TSS_cond_CV_fest = vector()
+for (i in 1:nsp){
+  e = evaluate(p=mean_cond_preds_espece_CV_fest[which(Y[,i]==1),i], a=mean_cond_preds_espece_CV_fest[which(Y[,i]==0),i])
+  index=which.max(e@TPR+e@TNR-1)
+  TSS_cond_CV_fest[i]=e@TPR[index]+e@TNR[index]-1
+}</code></pre>
+</div>
+<div id="predicted-probabilities-of-presence-at-site-devoluy-21000-conditionally-on-festuca-violacea-and-in-cross-validation" class="section level2">
+<h2>Predicted probabilities of presence at site Devoluy 21000, conditionally on Festuca violacea and in cross validation</h2>
+<pre class="r"><code>#site choice
+site.name=&quot;DEV_2100&quot;
+
+#Compute conditional predictions at this site
+Cond = data.frame(pred=t(mean_cond_preds_espece_CV_fest[which(rownames(Y)==site.name),]),
+                  sp=colnames(Y),type=rep(&quot;Conditionally on \n the presence of \n Festuca violacea&quot;,nsp),AUC=AUC_cond_CV_fest,presence=Y[rownames(Y)==site.name,])
+
+#Compute unconditional predictions at this site
+unCond = data.frame(pred=t(CV_post_mean_preds[which(rownames(Y)==site.name),]),sp=colnames(Y),type=rep(&quot;Unconditionally&quot;,nsp),AUC=CV_AUC,presence=Y[rownames(Y)==site.name,])</code></pre>
+</div>
+<div id="plot-results" class="section level2">
+<h2>Plot results</h2>
+<div class="figure">
+<img src="bystrova_files/figure-html/unnamed-chunk-4-1.png" alt="Cross-validation predicted probability of presence (a) and cross-validation AUC (b) of Poa Alpina, Campanula scheuchzeri, Soldanella alpina, Viola calcarata, Euphrasia minima and Picea Abies conditionally on Festuca violacea (green) and unconditionally (yellow). At site Devoluy 2100 all the herbaceous species of above were present (green box) while Picea abies was absent (red box)" width="672" />
+<p class="caption">
+Cross-validation predicted probability of presence (a) and cross-validation AUC (b) of Poa Alpina, Campanula scheuchzeri, Soldanella alpina, Viola calcarata, Euphrasia minima and Picea Abies conditionally on Festuca violacea (green) and unconditionally (yellow). At site Devoluy 2100 all the herbaceous species of above were present (green box) while Picea abies was absent (red box)
+</p>
+</div>
+</div>
+<div id="references" class="section level2">
+<h2>References</h2>
+<p>Martinez-Almoyna, Camille, Gabin Piton, Sylvain Abdulhak, Louise Boulangeat, Philippe Choler, Thierry Delahaye, Cédric Dentant, et al. 2020. “Climate, Soil Resources and Microbial Activity Shape the Distributions of Mountain Plants Based on Their Functional Traits.” Ecography 43 (10): 1550–9. <a href="https://doi.org/https://doi.org/10.1111/ecog.05269" class="uri">https://doi.org/https://doi.org/10.1111/ecog.05269</a>.</p>
+<p>Tikhonov, Gleb, Øystein H. Opedal, Nerea Abrego, Aleksi Lehikoinen, Melinda M. J. de Jonge, Jari Oksanen, and Otso Ovaskainen. 2020. “Joint Species Distribution Modelling with the R-Package Hmsc.” Methods in Ecology and Evolution 11 (3): 442–47. <a href="https://doi.org/https://doi.org/10.1111/2041-210X.13345" class="uri">https://doi.org/https://doi.org/10.1111/2041-210X.13345</a>.</p>
+<p>Tikhonov, Gleb, Otso Ovaskainen, Jari Oksanen, Melinda de Jonge, Oystein Opedal, and Tad Dallas. 2019. Hmsc: Hierarchical Model of Species Communities. <a href="https://CRAN.R-project.org/package=Hmsc" class="uri">https://CRAN.R-project.org/package=Hmsc</a>.</p>
 </div>
 
 
@@ -406,7 +652,7 @@ div.tocify {
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
@@ -445,7 +691,7 @@ $(document).ready(function ()  {
       theme: "bootstrap3",
       context: '.toc-content',
       hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
       },
       ignoreSelector: ".toc-ignore",
       scrollTo: 0
