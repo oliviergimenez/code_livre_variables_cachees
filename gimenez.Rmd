@@ -7,20 +7,433 @@ output:
         toc_float: TRUE
 ---
 
-Du code R qui va bien.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE, 
+                      dpi = 600, 
+                      fig.height = 6, 
+                      fig.width = 1.777777*6)
+library(tidyverse)
+library(sf)
+theme_set(theme_light(base_size = 16))
+set.seed(1234)
+```
+## Cas d'étude capture-recapture : estimation de la prévalence
+
+### Ajustement du modèle
+
+On ajuste le modèle $(\pi,\phi_{\mbox{état}},p,\delta)$.
+
+On commence par lire les données.
+```{r}
+wolf_data <- read.table("dat/wolf_capturerecapture.txt")
+wolf_data
+data <- t(wolf_data)
+```
+
+On définit aussi quelques quantités qui nous seront utiles par la suite.
+```{r}
+nh <- dim(wolf_data)[1] # nb individus
+k <- dim(wolf_data)[2] # nb occ de capture
+km1 <- k - 1 # nb occ de recapture
+eff <- rep(1, nh) # nb d'individus avec cette histoire particulière
+```
+
+On récupère l'occasion de première capture, ainsi que l'état de première capture. 
+```{r}
+fc <- NULL
+init.state <- NULL
+for (i in 1:nh){
+  temp <- 1:k
+  fc <- c(fc, min(which(wolf_data[i,] != 0)))
+  init.state <- c(init.state, wolf_data[i, fc[i]])
+}
+```
+
+On source la fonction qui calcule la déviance du modèle. 
+```{r}
+source('code/dev_phispdelta_age.R')
+```
+
+On définit des valeurs initiales par les paramètres. 
+```{r}
+binit <- runif(5)
+```
+
+Et on peut lancer la minimisation de la déviance.
+```{r}
+tmpmin <- optim(par = binit,
+                fn = dev_phispdelta_age,
+                gr = NULL,
+                hessian = TRUE,
+                method = "BFGS",
+                control = list(trace = 1, REPORT = 1),
+                data = data, 
+                eff = eff, 
+                e = fc, 
+                garb = init.state, 
+                nh = nh, 
+                km1 = km1)
+```
+
+On récupère les estimations sur l'échelle $[0, 1]$.
+```{r}
+x <- plogis(tmpmin$par)
+```
+
+On calcule aussi les intervalles de confiance.
+```{r}
+SElogit <- sqrt(diag(solve(tmpmin$hessian)))
+lb <- plogis(tmpmin$par - 1.96 * SElogit)
+ub <- plogis(tmpmin$par + 1.96 * SElogit)
+```
+
+Les paramètres estimés sont les suivants.
+```{r}
+nom_param <- c("Prop initiale état loups",
+               "Prob de survie des loups",
+               "Prob de survie des hybrides",
+               "Prob de détection",
+               "Prob d'assignation")
+est <- data.frame(round(x,2), paste0(round(lb,2), "-", round(ub,2)))
+colnames(est) <- c("max-vrais", "int-de-confiance")
+row.names(est) <- nom_param
+est
+```
+
+### Estimation de la prévalence
+
+On charge le package `HMM` qui va nous permettre d'implémenter l'algorithme de Viterbi.
+```{r}
+library(HMM)
+```
+
+On source la fonction qui applique Viterbi et calcule la prévalence. 
+```{r}
+source('code/viterbi_phispdelta.R')
+```
+
+On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle de loups. Le complémentaire donne la prévalence d'hybrides.
+```{r}
+prev_obs <- viterbi_phispdelta(data = wolf_data,
+                   fc = fc,
+                   k = k,
+                   pi = x[1],
+                   phi1 = x[2],
+                   phi2 = x[3],
+                   p = x[4],
+                   delta = x[5],
+                   n.states = 3)
+prev_obs
+```
+
+On peut prendre en compte l'incertude sur l'estimation des paramètres du modèle de capture-recapture. Pour ce faire, on utilise un bootstrap non-paramétrique. 
+
+On définit d'abord le nombre d'échantillons boostrap.
+```{r}
+nb_bootstrap <- 100
+```
+
+Puis on rééchantillonne dans les histoires de capture, avec remise, on estime les paramètres et on applique Viterbi et le calcul de la prévalence. 
+```{r}
+phispipdelta_pseudo <- matrix(NA, nrow = nb_bootstrap, ncol = k)
+for (jj in 1:nb_bootstrap){
+    # rééchantillonne dans les histoires de capture
+    pseudo_ind <- sample(nrow(wolf_data), replace = T)
+    pseudo <- wolf_data[pseudo_ind, 1:k]
+    # ajuste le modèle
+    data <- t(pseudo)                                   
+    fc <- NULL             
+    init.state <- NULL
+    for (kk in 1:nrow(pseudo)){
+      temp <- 1:ncol(pseudo)
+      fc <- c(fc,min(which(pseudo[kk,]!=0)))
+      init.state <- c(init.state,pseudo[kk,fc[kk]])
+    }
+    binit <- runif(5)
+    tmpmin <- optim(par = binit,
+                fn = dev_phispdelta_age,
+                gr = NULL,
+                hessian = TRUE,
+                method = "BFGS",
+                control = list(trace = 0),
+                data = data, 
+                eff = eff,
+                e = fc, 
+                garb = init.state, 
+                nh = nh, 
+                km1 = km1)
+    x <- plogis(tmpmin$par)
+    # applique Viterbi et calcule la prévalence
+    phispipdelta_pseudo[jj,] <-  viterbi_phispdelta(
+      data = pseudo,
+      fc = fc,
+      k = k,
+      pi = x[1],
+      phi1 = x[2],
+      phi2 = x[3],
+      p = x[4],
+      delta = x[5],
+      n.states = 3)
+}
+```
+
+On calcule un intervalle de confiance pour la prévalence de loups.
+```{r}
+res <- rbind(prev_obs, 
+             apply(phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
+colnames(res) <- paste0("Occ capture ", 1:k)
+row.names(res)[1] <- "prév estimée"
+round(t(res), 2)
+```
 
 
-## Trajectoire
+## Cas d'étude distribution : estimation de l'hétérogénéité de détection d'une espèce
 
-Les ingrédients
+### Ajustement du modèle
 
-1. Huile d'olive
-2. Citron
-3. Sel
-4. Poivre
+On commence par lire les données.
+```{r}
+wolf_data <- read_csv("dat/wolf_occupancy.csv") 
+head(wolf_data)
+```
+
+On ne prend que les histoires de capture des sites, et on regroupe par histoire unique, ce qui permet de réduire drastiquement les temps de calcul. 
+```{r}
+pooled_dat <- plyr::count(wolf_data[, 2:5], vars = c("occ1","occ2","occ3","occ4"))
+dat <- pooled_dat[,1:4]
+eff <- pooled_dat[,5]
+nh <- nrow(dat)
+k <- ncol(dat)
+tdat <- t(dat) # transpose
+```
+
+On source la fonction qui calcule la déviance du modèle avec faux positifs et hétérogénéité de détection.
+```{r}
+source("code/dev_occufphet.R")
+```
+
+On suspect des minima locaux dans la déviance du modèle. On répète la minimisation plusieurs fois, en partant de valeurs initiales différentes à chaque fois. 
+```{r}
+set.seed(1979)
+n.repet <- 100
+inits <- matrix(NA, nrow = n.repet, ncol = 7)
+mle <- matrix(NA, nrow = n.repet, ncol = 7)
+dev <- rep(NA, nrow = n.repet)
+for (i in 1:n.repet){
+  binit <- runif(7)
+  tmpmin <- optim(par = binit,
+                  fn = dev_occufphet,
+                  gr = NULL,
+                  hessian = FALSE,
+                  method = "BFGS",
+                  control = list(trace = 0),
+                  data = tdat, 
+                  eff = eff,
+                  nh = nh,
+                  k = k)
+  inits[i,] <- binit
+  mle[i,] <- plogis(tmpmin$par)
+  dev[i] <- tmpmin$value
+  }
+```
+
+On jette un coup d'oeil aux déviances obtenues.
+```{r}
+dev %>%
+  as_tibble() %>%
+  ggplot() + 
+  aes(x = value) +
+  geom_histogram()
+```
+
+On sélectionne la déviance la plus petite, et on récupère les estimations correspondant sur l'échelle $[0, 1]$.
+```{r}
+index <- which(dev == min(dev))
+mle[index,]
+```
+
+On calcule aussi les intervalles de confiance. On refait la minimisation avec les valeurs initiales qui ont conduit au minimum global de la déviance, et en calculant la hessienne (qu'on n'avait pas calculé au-dessus pour accélérer l'étape de minimisation).
+```{r}
+binit <- inits[index,]
+tmpmin <- optim(par = binit,
+                fn = dev_occufphet,
+                gr = NULL,
+                hessian = TRUE,
+                method = "BFGS",
+                control = list(trace = 0),
+                data = tdat, 
+                eff = eff,
+                nh = nh,
+                k = k)
+x <- plogis(tmpmin$par)
+SElogit <- sqrt(diag(matlib::Ginv(tmpmin$hessian)))
+lb <- plogis(tmpmin$par - 1.96 * SElogit)
+ub <- plogis(tmpmin$par + 1.96 * SElogit)
+```
+
+Les paramètres estimés sont les suivants.
+```{r}
+nom_param <- c("Prop of sites in class A",
+               "Prob occupancy",
+               "Prob false+ detection in sites A",
+               "Prob true+ detection in sites A",
+               "Prob false+ detection in sites B",
+               "Prob true+ detection in sites B",
+               "Prob classify a true+ detection as unambiguous")
+est <- data.frame(round(x,2), paste0(round(lb,2), "-", round(ub,2)))
+colnames(est) <- c("max-vrais", "int-de-confiance")
+row.names(est) <- nom_param
+est
+```
+
+### Visualiser l'hétérogénéité
+
+On charge le package `HMM` qui va nous permettre d'implémenter l'algorithme de Viterbi.
+```{r}
+library(HMM)
+```
+
+On définit les quantités nécessaires. 
+```{r}
+pi <- est[1,1]
+psi1 <- est[2,1]
+pA10 <- est[3,1]
+pA11 <- est[4,1]
+pB10 <- est[5,1]
+pB11 <- est[6,1]
+delta <- est[7,1]
+
+# init-state prob
+PI1 <- c(1 - pi, pi)
+PI2 <- matrix(c(1 - psi1, 0, psi1, 0, 0, 1 - psi1, 0, psi1),
+              nrow = 2,
+              ncol = 4,
+              byrow = T)
+PI <- PI1 %*% PI2 # sum(PI)=1!
+
+# transition matrix
+gamA <- gamB <- epsA <- epsB <- 0
+A <- matrix(c(1 - gamA, 0, gamA, 0,
+              0, 1 - gamB, 0, gamB,
+              epsA, 0, 1 - epsA, 0,
+              0, epsB, 0, 1 - epsB),
+            nrow = 4,
+            ncol = 4,
+            byrow = T)
+
+# obs matrix
+B1 <- matrix(c(1 - pA10, 0, pA10,
+              1 - pB10, 0, pB10,
+              1 - pA11, pA11, 0,
+              1 - pB11, pB11, 0),
+            nrow = 4,
+            ncol = 3,
+            byrow = T)
+B2 <- matrix(c(1, 0, 0,
+              0, delta, 1 - delta,
+              0, 0, 1),
+            nrow = 3,
+            ncol = 3,
+            byrow = T)
+B <- B1 %*% B2
+```
+
+On construit le modèle de Markov caché.
+```{r}
+hmm <- initHMM(
+  States = c("NOA", "NOB", "OA", "OB"), # states non-occ A, non-occ B, occ A, occ B
+  Symbols = c("0", "1", "2"), # 0 = non-detected, 1 = seen and assigned certain, 2 = seen and assigned uncertain
+  startProbs = PI, # initial states
+  transProbs = A,
+  emissionProbs = B)
+print(hmm)
+```
+
+On applique Viterbi.
+```{r}
+viterbi_res <- matrix(NA, nrow(dat), ncol(dat))
+for (i in 1:nrow(dat)){
+	current_encounter_history <- dat[i,]
+	# calculate Viterbi path
+	current_obs <- as.character(current_encounter_history)
+	viterbi_res[i,] <- viterbi(hmm, current_obs)
+	}
+viterbi_res # chaque site est dans un tat et un seul
+```
+On peut comparer les observations aux états reconstitués.
+```{r}
+cbind(viterbi_res, dat)
+```
 
 
-## Mouvements
+Pour chaque site, on cherche si c'est un classe A ou un classe B.
+```{r}
+class_site <- NULL
+for (i in 1:nrow(dat)){
+	if (unique(grepl('A', viterbi_res[i,])) == TRUE) temp <- 'A'
+	if (unique(grepl('B', viterbi_res[i,])) == TRUE) temp <- 'B'
+	class_site = c(class_site,temp) 
+}
+class_site
+```
 
-Au minimum il faut :
+On peut alors faire une carte avec les sites de type A et ceux de type B. Pour ce faire, il faut associer un état à tous les sites.
+```{r}
+all_sites <- wolf_data[, 2:5]
+viterbi_res <- matrix(NA, nrow(all_sites), ncol(all_sites))
+for (i in 1:nrow(all_sites)){
+	current_encounter_history <- all_sites[i,]
+	# calculate Viterbi path
+	current_obs <- as.character(current_encounter_history)
+	viterbi_res[i,] <- viterbi(hmm, current_obs)
+	}
+class_site <- NULL
+for (i in 1:nrow(all_sites)){
+	if (unique(grepl('A', viterbi_res[i,])) == TRUE) temp <- 'A'
+	if (unique(grepl('B', viterbi_res[i,])) == TRUE) temp <- 'B'
+	class_site <- c(class_site,temp) 
+}
+```
+
+On peut calculer le nombre de sites A et B.
+```{r}
+table(class_site)
+```
+
+On crée un raster à partir des classes de sites.
+```{r}
+class_site2 <- data.frame('class' = class_site, 
+                          'x' = wolf_data$X, 
+                          'y' = wolf_data$Y) %>%
+  mutate(class = if_else(class == "A", 1, 2),
+         x = as.numeric(x),
+         y = as.numeric(y))
+library(raster)
+rasterOptions("ascii")
+raster_class <- rasterFromXYZ(cbind(class_site2[,'x'], 
+                         class_site2[,'y'], 
+                         class_site2[,'class']))
+```
+
+Puis on visualise.
+```{r}
+# font de carte france
+france <- st_read("dat/france_union_departements.shp")
+st_crs(france) <- 2154 # Lambert 93
+# convertit en SpatialPointsDataFrame
+class_pts <- rasterToPoints(raster_class, spatial = TRUE)
+class_pts$layer <- if_else(class_pts$layer == 1, "A", "B")
+# convertit en dataframe
+class_df  <- data.frame(class_pts)
+
+ggplot() +
+  geom_raster(data = class_df , aes(x = x, y = y, fill = as_factor(layer))) + 
+  geom_sf(data = france %>% st_boundary()) + 
+  labs(fill = "classe d'hétérogénéité") +
+  scale_fill_viridis_d(alpha = 0.5) + 
+  labs(x = "",
+       y = "")
+```
 

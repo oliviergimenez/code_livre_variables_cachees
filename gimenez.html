@@ -14,7 +14,7 @@
 
 <title>Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés</title>
 
-<script src="site_libs/header-attrs-2.1/header-attrs.js"></script>
+<script src="site_libs/header-attrs-2.5/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/paper.min.css" rel="stylesheet" />
@@ -27,8 +27,19 @@
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
@@ -379,20 +390,520 @@ div.tocify {
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<div id="cas-détude-capture-recapture-estimation-de-la-prévalence" class="section level2">
+<h2>Cas d’étude capture-recapture : estimation de la prévalence</h2>
+<div id="ajustement-du-modèle" class="section level3">
+<h3>Ajustement du modèle</h3>
+<p>On ajuste le modèle <span class="math inline">\((\pi,\phi_{\mbox{état}},p,\delta)\)</span>.</p>
+<p>On commence par lire les données.</p>
+<pre class="r"><code>wolf_data &lt;- read.table(&quot;dat/wolf_capturerecapture.txt&quot;)
+wolf_data</code></pre>
+<pre><code>##    V1 V2 V3 V4 V5
+## 1   0  1  0  0  0
+## 2   1  0  0  0  0
+## 3   0  0  0  1  0
+## 4   1  3  0  0  3
+## 5   1  3  3  0  0
+## 6   0  0  1  0  0
+## 7   0  0  1  0  0
+## 8   0  0  0  1  3
+## 9   0  0  0  1  0
+## 10  0  1  0  0  0
+## 11  0  0  3  3  0
+## 12  0  3  0  0  0
+## 13  0  0  3  0  0
+## 14  3  0  0  0  0
+## 15  0  0  0  0  3
+## 16  3  3  3  0  0
+## 17  0  0  2  0  0
+## 18  0  0  0  2  0
+## 19  0  0  0  2  3
+## 20  0  0  0  2  0
+## 21  0  0  0  2  3
+## 22  0  0  0  0  2
+## 23  2  3  0  3  3
+## 24  2  0  0  0  0
+## 25  2  3  0  3  0
+## 26  0  0  2  0  0
+## 27  0  2  3  3  0
+## 28  0  0  0  2  3
+## 29  2  3  0  3  3
+## 30  0  2  3  3  0
+## 31  0  2  3  0  0
+## 32  0  0  2  0  0
+## 33  0  0  2  0  0
+## 34  0  0  2  0  0
+## 35  0  0  2  0  0
+## 36  2  0  0  0  3
+## 37  2  0  0  0  0
+## 38  0  0  0  0  2
+## 39  0  0  0  2  0</code></pre>
+<pre class="r"><code>data &lt;- t(wolf_data)</code></pre>
+<p>On définit aussi quelques quantités qui nous seront utiles par la suite.</p>
+<pre class="r"><code>nh &lt;- dim(wolf_data)[1] # nb individus
+k &lt;- dim(wolf_data)[2] # nb occ de capture
+km1 &lt;- k - 1 # nb occ de recapture
+eff &lt;- rep(1, nh) # nb d&#39;individus avec cette histoire particulière</code></pre>
+<p>On récupère l’occasion de première capture, ainsi que l’état de première capture.</p>
+<pre class="r"><code>fc &lt;- NULL
+init.state &lt;- NULL
+for (i in 1:nh){
+  temp &lt;- 1:k
+  fc &lt;- c(fc, min(which(wolf_data[i,] != 0)))
+  init.state &lt;- c(init.state, wolf_data[i, fc[i]])
+}</code></pre>
+<p>On source la fonction qui calcule la déviance du modèle.</p>
+<pre class="r"><code>source(&#39;code/dev_phispdelta_age.R&#39;)</code></pre>
+<p>On définit des valeurs initiales par les paramètres.</p>
+<pre class="r"><code>binit &lt;- runif(5)</code></pre>
+<p>Et on peut lancer la minimisation de la déviance.</p>
+<pre class="r"><code>tmpmin &lt;- optim(par = binit,
+                fn = dev_phispdelta_age,
+                gr = NULL,
+                hessian = TRUE,
+                method = &quot;BFGS&quot;,
+                control = list(trace = 1, REPORT = 1),
+                data = data, 
+                eff = eff, 
+                e = fc, 
+                garb = init.state, 
+                nh = nh, 
+                km1 = km1)</code></pre>
+<pre><code>## initial  value 190.410103 
+## iter   2 value 178.974548
+## iter   3 value 177.510691
+## iter   4 value 176.784391
+## iter   5 value 176.121648
+## iter   6 value 175.783981
+## iter   7 value 175.573982
+## iter   8 value 175.463561
+## iter   9 value 175.456154
+## iter  10 value 175.456037
+## iter  11 value 175.456033
+## iter  11 value 175.456033
+## iter  11 value 175.456033
+## final  value 175.456033 
+## converged</code></pre>
+<p>On récupère les estimations sur l’échelle <span class="math inline">\([0, 1]\)</span>.</p>
+<pre class="r"><code>x &lt;- plogis(tmpmin$par)</code></pre>
+<p>On calcule aussi les intervalles de confiance.</p>
+<pre class="r"><code>SElogit &lt;- sqrt(diag(solve(tmpmin$hessian)))
+lb &lt;- plogis(tmpmin$par - 1.96 * SElogit)
+ub &lt;- plogis(tmpmin$par + 1.96 * SElogit)</code></pre>
+<p>Les paramètres estimés sont les suivants.</p>
+<pre class="r"><code>nom_param &lt;- c(&quot;Prop initiale état loups&quot;,
+               &quot;Prob de survie des loups&quot;,
+               &quot;Prob de survie des hybrides&quot;,
+               &quot;Prob de détection&quot;,
+               &quot;Prob d&#39;assignation&quot;)
+est &lt;- data.frame(round(x,2), paste0(round(lb,2), &quot;-&quot;, round(ub,2)))
+colnames(est) &lt;- c(&quot;max-vrais&quot;, &quot;int-de-confiance&quot;)
+row.names(est) &lt;- nom_param
+est</code></pre>
+<pre><code>##                             max-vrais int-de-confiance
+## Prop initiale état loups         0.31        0.21-0.43
+## Prob de survie des loups         0.63        0.39-0.82
+## Prob de survie des hybrides      0.81        0.59-0.93
+## Prob de détection                0.46        0.31-0.61
+## Prob d&#39;assignation               0.85        0.75-0.91</code></pre>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="estimation-de-la-prévalence" class="section level3">
+<h3>Estimation de la prévalence</h3>
+<p>On charge le package <code>HMM</code> qui va nous permettre d’implémenter l’algorithme de Viterbi.</p>
+<pre class="r"><code>library(HMM)</code></pre>
+<p>On source la fonction qui applique Viterbi et calcule la prévalence.</p>
+<pre class="r"><code>source(&#39;code/viterbi_phispdelta.R&#39;)</code></pre>
+<p>On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle de loups. Le complémentaire donne la prévalence d’hybrides.</p>
+<pre class="r"><code>prev_obs &lt;- viterbi_phispdelta(data = wolf_data,
+                   fc = fc,
+                   k = k,
+                   pi = x[1],
+                   phi1 = x[2],
+                   phi2 = x[3],
+                   p = x[4],
+                   delta = x[5],
+                   n.states = 3)
+prev_obs</code></pre>
+<pre><code>## [1] 0.7272727 0.6666667 0.8000000 0.8000000 0.8181818</code></pre>
+<p>On peut prendre en compte l’incertude sur l’estimation des paramètres du modèle de capture-recapture. Pour ce faire, on utilise un bootstrap non-paramétrique.</p>
+<p>On définit d’abord le nombre d’échantillons boostrap.</p>
+<pre class="r"><code>nb_bootstrap &lt;- 100</code></pre>
+<p>Puis on rééchantillonne dans les histoires de capture, avec remise, on estime les paramètres et on applique Viterbi et le calcul de la prévalence.</p>
+<pre class="r"><code>phispipdelta_pseudo &lt;- matrix(NA, nrow = nb_bootstrap, ncol = k)
+for (jj in 1:nb_bootstrap){
+    # rééchantillonne dans les histoires de capture
+    pseudo_ind &lt;- sample(nrow(wolf_data), replace = T)
+    pseudo &lt;- wolf_data[pseudo_ind, 1:k]
+    # ajuste le modèle
+    data &lt;- t(pseudo)                                   
+    fc &lt;- NULL             
+    init.state &lt;- NULL
+    for (kk in 1:nrow(pseudo)){
+      temp &lt;- 1:ncol(pseudo)
+      fc &lt;- c(fc,min(which(pseudo[kk,]!=0)))
+      init.state &lt;- c(init.state,pseudo[kk,fc[kk]])
+    }
+    binit &lt;- runif(5)
+    tmpmin &lt;- optim(par = binit,
+                fn = dev_phispdelta_age,
+                gr = NULL,
+                hessian = TRUE,
+                method = &quot;BFGS&quot;,
+                control = list(trace = 0),
+                data = data, 
+                eff = eff,
+                e = fc, 
+                garb = init.state, 
+                nh = nh, 
+                km1 = km1)
+    x &lt;- plogis(tmpmin$par)
+    # applique Viterbi et calcule la prévalence
+    phispipdelta_pseudo[jj,] &lt;-  viterbi_phispdelta(
+      data = pseudo,
+      fc = fc,
+      k = k,
+      pi = x[1],
+      phi1 = x[2],
+      phi2 = x[3],
+      p = x[4],
+      delta = x[5],
+      n.states = 3)
+}</code></pre>
+<p>On calcule un intervalle de confiance pour la prévalence de loups.</p>
+<pre class="r"><code>res &lt;- rbind(prev_obs, 
+             apply(phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
+colnames(res) &lt;- paste0(&quot;Occ capture &quot;, 1:k)
+row.names(res)[1] &lt;- &quot;prév estimée&quot;
+round(t(res), 2)</code></pre>
+<pre><code>##               prév estimée 2.5% 97.5%
+## Occ capture 1         0.73 0.39  0.91
+## Occ capture 2         0.67 0.39  0.90
+## Occ capture 3         0.80 0.50  1.00
+## Occ capture 4         0.80 0.50  1.00
+## Occ capture 5         0.82 0.50  1.00</code></pre>
+</div>
+</div>
+<div id="cas-détude-distribution-estimation-de-lhétérogénéité-de-détection-dune-espèce" class="section level2">
+<h2>Cas d’étude distribution : estimation de l’hétérogénéité de détection d’une espèce</h2>
+<div id="ajustement-du-modèle-1" class="section level3">
+<h3>Ajustement du modèle</h3>
+<p>On commence par lire les données.</p>
+<pre class="r"><code>wolf_data &lt;- read_csv(&quot;dat/wolf_occupancy.csv&quot;) 
+head(wolf_data)</code></pre>
+<pre><code>## # A tibble: 6 x 10
+##   idsite  occ1  occ2  occ3  occ4 effort altitude foret      X       Y
+##    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+## 1      8     0     0     0     0 -0.784   -1.03  -1.25 585000 6115000
+## 2      9     0     0     0     0 -0.784    1.51  -1.25 595000 6115000
+## 3     10     0     0     0     0 -0.784    0.808 -1.25 605000 6115000
+## 4     11     0     0     0     0 -0.743    0.675 -1.25 615000 6115000
+## 5     12     0     0     0     0 -0.703    0.683 -1.25 625000 6115000
+## 6     13     0     0     0     0 -0.703    0.507 -1.25 635000 6115000</code></pre>
+<p>On ne prend que les histoires de capture des sites, et on regroupe par histoire unique, ce qui permet de réduire drastiquement les temps de calcul.</p>
+<pre class="r"><code>pooled_dat &lt;- plyr::count(wolf_data[, 2:5], vars = c(&quot;occ1&quot;,&quot;occ2&quot;,&quot;occ3&quot;,&quot;occ4&quot;))
+dat &lt;- pooled_dat[,1:4]
+eff &lt;- pooled_dat[,5]
+nh &lt;- nrow(dat)
+k &lt;- ncol(dat)
+tdat &lt;- t(dat) # transpose</code></pre>
+<p>On source la fonction qui calcule la déviance du modèle avec faux positifs et hétérogénéité de détection.</p>
+<pre class="r"><code>source(&quot;code/dev_occufphet.R&quot;)</code></pre>
+<p>On suspect des minima locaux dans la déviance du modèle. On répète la minimisation plusieurs fois, en partant de valeurs initiales différentes à chaque fois.</p>
+<pre class="r"><code>set.seed(1979)
+n.repet &lt;- 100
+inits &lt;- matrix(NA, nrow = n.repet, ncol = 7)
+mle &lt;- matrix(NA, nrow = n.repet, ncol = 7)
+dev &lt;- rep(NA, nrow = n.repet)
+for (i in 1:n.repet){
+  binit &lt;- runif(7)
+  tmpmin &lt;- optim(par = binit,
+                  fn = dev_occufphet,
+                  gr = NULL,
+                  hessian = FALSE,
+                  method = &quot;BFGS&quot;,
+                  control = list(trace = 0),
+                  data = tdat, 
+                  eff = eff,
+                  nh = nh,
+                  k = k)
+  inits[i,] &lt;- binit
+  mle[i,] &lt;- plogis(tmpmin$par)
+  dev[i] &lt;- tmpmin$value
+  }</code></pre>
+<p>On jette un coup d’oeil aux déviances obtenues.</p>
+<pre class="r"><code>dev %&gt;%
+  as_tibble() %&gt;%
+  ggplot() + 
+  aes(x = value) +
+  geom_histogram()</code></pre>
+<p><img src="gimenez_files/figure-html/unnamed-chunk-20-1.png" width="6399.9972" /></p>
+<p>On sélectionne la déviance la plus petite, et on récupère les estimations correspondant sur l’échelle <span class="math inline">\([0, 1]\)</span>.</p>
+<pre class="r"><code>index &lt;- which(dev == min(dev))
+mle[index,]</code></pre>
+<pre><code>## [1] 6.098218e-02 4.879364e-02 4.814402e-02 1.000000e+00 1.115610e-41
+## [6] 3.936977e-01 9.329134e-01</code></pre>
+<p>On calcule aussi les intervalles de confiance. On refait la minimisation avec les valeurs initiales qui ont conduit au minimum global de la déviance, et en calculant la hessienne (qu’on n’avait pas calculé au-dessus pour accélérer l’étape de minimisation).</p>
+<pre class="r"><code>binit &lt;- inits[index,]
+tmpmin &lt;- optim(par = binit,
+                fn = dev_occufphet,
+                gr = NULL,
+                hessian = TRUE,
+                method = &quot;BFGS&quot;,
+                control = list(trace = 0),
+                data = tdat, 
+                eff = eff,
+                nh = nh,
+                k = k)
+x &lt;- plogis(tmpmin$par)
+SElogit &lt;- sqrt(diag(matlib::Ginv(tmpmin$hessian)))
+lb &lt;- plogis(tmpmin$par - 1.96 * SElogit)
+ub &lt;- plogis(tmpmin$par + 1.96 * SElogit)</code></pre>
+<p>Les paramètres estimés sont les suivants.</p>
+<pre class="r"><code>nom_param &lt;- c(&quot;Prop of sites in class A&quot;,
+               &quot;Prob occupancy&quot;,
+               &quot;Prob false+ detection in sites A&quot;,
+               &quot;Prob true+ detection in sites A&quot;,
+               &quot;Prob false+ detection in sites B&quot;,
+               &quot;Prob true+ detection in sites B&quot;,
+               &quot;Prob classify a true+ detection as unambiguous&quot;)
+est &lt;- data.frame(round(x,2), paste0(round(lb,2), &quot;-&quot;, round(ub,2)))
+colnames(est) &lt;- c(&quot;max-vrais&quot;, &quot;int-de-confiance&quot;)
+row.names(est) &lt;- nom_param
+est</code></pre>
+<pre><code>##                                                max-vrais int-de-confiance
+## Prop of sites in class A                            0.06        0.04-0.09
+## Prob occupancy                                      0.05        0.04-0.06
+## Prob false+ detection in sites A                    0.05        0.03-0.08
+## Prob true+ detection in sites A                     1.00              1-1
+## Prob false+ detection in sites B                    0.00              0-0
+## Prob true+ detection in sites B                     0.39        0.35-0.43
+## Prob classify a true+ detection as unambiguous      0.93         0.9-0.95</code></pre>
+</div>
+<div id="visualiser-lhétérogénéité" class="section level3">
+<h3>Visualiser l’hétérogénéité</h3>
+<p>On charge le package <code>HMM</code> qui va nous permettre d’implémenter l’algorithme de Viterbi.</p>
+<pre class="r"><code>library(HMM)</code></pre>
+<p>On définit les quantités nécessaires.</p>
+<pre class="r"><code>pi &lt;- est[1,1]
+psi1 &lt;- est[2,1]
+pA10 &lt;- est[3,1]
+pA11 &lt;- est[4,1]
+pB10 &lt;- est[5,1]
+pB11 &lt;- est[6,1]
+delta &lt;- est[7,1]
+
+# init-state prob
+PI1 &lt;- c(1 - pi, pi)
+PI2 &lt;- matrix(c(1 - psi1, 0, psi1, 0, 0, 1 - psi1, 0, psi1),
+              nrow = 2,
+              ncol = 4,
+              byrow = T)
+PI &lt;- PI1 %*% PI2 # sum(PI)=1!
+
+# transition matrix
+gamA &lt;- gamB &lt;- epsA &lt;- epsB &lt;- 0
+A &lt;- matrix(c(1 - gamA, 0, gamA, 0,
+              0, 1 - gamB, 0, gamB,
+              epsA, 0, 1 - epsA, 0,
+              0, epsB, 0, 1 - epsB),
+            nrow = 4,
+            ncol = 4,
+            byrow = T)
+
+# obs matrix
+B1 &lt;- matrix(c(1 - pA10, 0, pA10,
+              1 - pB10, 0, pB10,
+              1 - pA11, pA11, 0,
+              1 - pB11, pB11, 0),
+            nrow = 4,
+            ncol = 3,
+            byrow = T)
+B2 &lt;- matrix(c(1, 0, 0,
+              0, delta, 1 - delta,
+              0, 0, 1),
+            nrow = 3,
+            ncol = 3,
+            byrow = T)
+B &lt;- B1 %*% B2</code></pre>
+<p>On construit le modèle de Markov caché.</p>
+<pre class="r"><code>hmm &lt;- initHMM(
+  States = c(&quot;NOA&quot;, &quot;NOB&quot;, &quot;OA&quot;, &quot;OB&quot;), # states non-occ A, non-occ B, occ A, occ B
+  Symbols = c(&quot;0&quot;, &quot;1&quot;, &quot;2&quot;), # 0 = non-detected, 1 = seen and assigned certain, 2 = seen and assigned uncertain
+  startProbs = PI, # initial states
+  transProbs = A,
+  emissionProbs = B)
+print(hmm)</code></pre>
+<pre><code>## $States
+## [1] &quot;NOA&quot; &quot;NOB&quot; &quot;OA&quot;  &quot;OB&quot; 
+## 
+## $Symbols
+## [1] &quot;0&quot; &quot;1&quot; &quot;2&quot;
+## 
+## $startProbs
+##   NOA   NOB    OA    OB 
+## 0.893 0.057 0.047 0.003 
+## 
+## $transProbs
+##      to
+## from  NOA NOB OA OB
+##   NOA   1   0  0  0
+##   NOB   0   1  0  0
+##   OA    0   0  1  0
+##   OB    0   0  0  1
+## 
+## $emissionProbs
+##       symbols
+## states    0      1      2
+##    NOA 0.95 0.0000 0.0500
+##    NOB 1.00 0.0000 0.0000
+##    OA  0.00 0.9300 0.0700
+##    OB  0.61 0.3627 0.0273</code></pre>
+<p>On applique Viterbi.</p>
+<pre class="r"><code>viterbi_res &lt;- matrix(NA, nrow(dat), ncol(dat))
+for (i in 1:nrow(dat)){
+    current_encounter_history &lt;- dat[i,]
+    # calculate Viterbi path
+    current_obs &lt;- as.character(current_encounter_history)
+    viterbi_res[i,] &lt;- viterbi(hmm, current_obs)
+    }
+viterbi_res # chaque site est dans un tat et un seul</code></pre>
+<pre><code>##       [,1]  [,2]  [,3]  [,4] 
+##  [1,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+##  [2,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+##  [3,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+##  [4,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+##  [5,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+##  [6,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+##  [7,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+##  [8,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+##  [9,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [10,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [11,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [12,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [13,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [14,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [15,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+## [16,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [17,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [18,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [19,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [20,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [21,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [22,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [23,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [24,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [25,] &quot;OA&quot;  &quot;OA&quot;  &quot;OA&quot;  &quot;OA&quot; 
+## [26,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [27,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [28,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+## [29,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [30,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+## [31,] &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot; &quot;NOA&quot;
+## [32,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot; 
+## [33,] &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;  &quot;OB&quot;</code></pre>
+<p>On peut comparer les observations aux états reconstitués.</p>
+<pre class="r"><code>cbind(viterbi_res, dat)</code></pre>
+<pre><code>##      1   2   3   4 occ1 occ2 occ3 occ4
+## 1  NOA NOA NOA NOA    0    0    0    0
+## 2   OB  OB  OB  OB    0    0    0    1
+## 3  NOA NOA NOA NOA    0    0    0    2
+## 4   OB  OB  OB  OB    0    0    1    0
+## 5   OB  OB  OB  OB    0    0    1    1
+## 6  NOA NOA NOA NOA    0    0    2    0
+## 7   OB  OB  OB  OB    0    1    0    0
+## 8   OB  OB  OB  OB    0    1    0    1
+## 9   OB  OB  OB  OB    0    1    0    2
+## 10  OB  OB  OB  OB    0    1    1    0
+## 11  OB  OB  OB  OB    0    1    1    1
+## 12  OB  OB  OB  OB    0    1    1    2
+## 13  OB  OB  OB  OB    0    1    2    0
+## 14  OB  OB  OB  OB    0    1    2    1
+## 15 NOA NOA NOA NOA    0    2    0    0
+## 16  OB  OB  OB  OB    0    2    1    2
+## 17  OB  OB  OB  OB    1    0    0    0
+## 18  OB  OB  OB  OB    1    0    0    2
+## 19  OB  OB  OB  OB    1    0    1    0
+## 20  OB  OB  OB  OB    1    0    1    1
+## 21  OB  OB  OB  OB    1    0    2    0
+## 22  OB  OB  OB  OB    1    1    0    0
+## 23  OB  OB  OB  OB    1    1    0    1
+## 24  OB  OB  OB  OB    1    1    1    0
+## 25  OA  OA  OA  OA    1    1    1    1
+## 26  OB  OB  OB  OB    1    1    2    0
+## 27  OB  OB  OB  OB    1    2    0    1
+## 28 NOA NOA NOA NOA    2    0    0    0
+## 29  OB  OB  OB  OB    2    0    0    1
+## 30 NOA NOA NOA NOA    2    0    0    2
+## 31 NOA NOA NOA NOA    2    0    2    0
+## 32  OB  OB  OB  OB    2    1    0    0
+## 33  OB  OB  OB  OB    2    1    0    2</code></pre>
+<p>Pour chaque site, on cherche si c’est un classe A ou un classe B.</p>
+<pre class="r"><code>class_site &lt;- NULL
+for (i in 1:nrow(dat)){
+    if (unique(grepl(&#39;A&#39;, viterbi_res[i,])) == TRUE) temp &lt;- &#39;A&#39;
+    if (unique(grepl(&#39;B&#39;, viterbi_res[i,])) == TRUE) temp &lt;- &#39;B&#39;
+    class_site = c(class_site,temp) 
+}
+class_site</code></pre>
+<pre><code>##  [1] &quot;A&quot; &quot;B&quot; &quot;A&quot; &quot;B&quot; &quot;B&quot; &quot;A&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;A&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot;
+## [20] &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;B&quot; &quot;A&quot; &quot;B&quot; &quot;B&quot; &quot;A&quot; &quot;B&quot; &quot;A&quot; &quot;A&quot; &quot;B&quot; &quot;B&quot;</code></pre>
+<p>On peut alors faire une carte avec les sites de type A et ceux de type B. Pour ce faire, il faut associer un état à tous les sites.</p>
+<pre class="r"><code>all_sites &lt;- wolf_data[, 2:5]
+viterbi_res &lt;- matrix(NA, nrow(all_sites), ncol(all_sites))
+for (i in 1:nrow(all_sites)){
+    current_encounter_history &lt;- all_sites[i,]
+    # calculate Viterbi path
+    current_obs &lt;- as.character(current_encounter_history)
+    viterbi_res[i,] &lt;- viterbi(hmm, current_obs)
+    }
+class_site &lt;- NULL
+for (i in 1:nrow(all_sites)){
+    if (unique(grepl(&#39;A&#39;, viterbi_res[i,])) == TRUE) temp &lt;- &#39;A&#39;
+    if (unique(grepl(&#39;B&#39;, viterbi_res[i,])) == TRUE) temp &lt;- &#39;B&#39;
+    class_site &lt;- c(class_site,temp) 
+}</code></pre>
+<p>On peut calculer le nombre de sites A et B.</p>
+<pre class="r"><code>table(class_site)</code></pre>
+<pre><code>## class_site
+##    A    B 
+## 3090  121</code></pre>
+<p>On crée un raster à partir des classes de sites.</p>
+<pre class="r"><code>class_site2 &lt;- data.frame(&#39;class&#39; = class_site, 
+                          &#39;x&#39; = wolf_data$X, 
+                          &#39;y&#39; = wolf_data$Y) %&gt;%
+  mutate(class = if_else(class == &quot;A&quot;, 1, 2),
+         x = as.numeric(x),
+         y = as.numeric(y))
+library(raster)
+rasterOptions(&quot;ascii&quot;)
+raster_class &lt;- rasterFromXYZ(cbind(class_site2[,&#39;x&#39;], 
+                         class_site2[,&#39;y&#39;], 
+                         class_site2[,&#39;class&#39;]))</code></pre>
+<p>Puis on visualise.</p>
+<pre class="r"><code># font de carte france
+france &lt;- st_read(&quot;dat/france_union_departements.shp&quot;)</code></pre>
+<pre><code>## Reading layer `france_union_departements&#39; from data source `/Users/oliviergimenez/Dropbox/OG/GITHUB/code_livre_variables_cachees/dat/france_union_departements.shp&#39; using driver `ESRI Shapefile&#39;
+## Simple feature collection with 1 feature and 12 fields
+## geometry type:  MULTIPOLYGON
+## dimension:      XY
+## bbox:           xmin: 99217.1 ymin: 6049646 xmax: 1242417 ymax: 7110480
+## projected CRS:  RGF93_Lambert_93</code></pre>
+<pre class="r"><code>st_crs(france) &lt;- 2154 # Lambert 93
+# convertit en SpatialPointsDataFrame
+class_pts &lt;- rasterToPoints(raster_class, spatial = TRUE)
+class_pts$layer &lt;- if_else(class_pts$layer == 1, &quot;A&quot;, &quot;B&quot;)
+# convertit en dataframe
+class_df  &lt;- data.frame(class_pts)
+
+ggplot() +
+  geom_raster(data = class_df , aes(x = x, y = y, fill = as_factor(layer))) + 
+  geom_sf(data = france %&gt;% st_boundary()) + 
+  labs(fill = &quot;classe d&#39;hétérogénéité&quot;) +
+  scale_fill_viridis_d(alpha = 0.5) + 
+  labs(x = &quot;&quot;,
+       y = &quot;&quot;)</code></pre>
+<p><img src="gimenez_files/figure-html/unnamed-chunk-33-1.png" width="6399.9972" /></p>
+</div>
 </div>
 
 
@@ -406,7 +917,7 @@ div.tocify {
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
@@ -445,7 +956,7 @@ $(document).ready(function ()  {
       theme: "bootstrap3",
       context: '.toc-content',
       hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
       },
       ignoreSelector: ".toc-ignore",
       scrollTo: 0
