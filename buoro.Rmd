@@ -1,6 +1,6 @@
 ---
 title: "Mise évidence des processus éco-évolutifs en milieu naturel : le cas des compromis entre traits d’histoire de vie"
-author: "M. Buoro, J. Papaïx"
+author: "M. Buoro, J. Papaïx, S. Cubaynes"
 output: 
     html_document:
         toc: TRUE

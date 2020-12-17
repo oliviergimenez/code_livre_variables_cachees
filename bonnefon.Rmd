@@ -1,6 +1,7 @@
 ---
 title: "Etudier la dynamique d’une population par des approches mécanistico-statistiques"
-author: "O. Bonnefon et tout un tas de collègues"
+author: "O. Bonnefon, E. Klein, J. Louvrier, J. Papaïx, L.
+Roques, S. Soubeyrand, E. Walker"
 output: 
     html_document:
         toc: TRUE

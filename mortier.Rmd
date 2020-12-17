@@ -1,6 +1,6 @@
 ---
 title: "La régression linéaire généralisée sur composantes supervisées et ses extensions"
-author: "F. Mortier, X. Bry, C. Trottier, G. Cornu, J. Chauvet"
+author: "F. Mortier, J. Chauvet, C. Trottier, G. Cornu, X. Bry"
 output: 
     html_document:
         toc: TRUE
