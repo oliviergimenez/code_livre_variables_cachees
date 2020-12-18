@@ -390,8 +390,8 @@ div.tocify {
 </div>
 
 
-<p>Ce document constitue une présentation des codes et analyses associés au traitement de l’exemple présenté en section 3 du chapitre <em>Les modèles à équations structurelles pour l’étude des écosystèmes et socio-écosystèmes</em> de l’ouvrage <em>Approches statistiques pour les variables cachées en écologie</em>. Sa segmentation suit celle de la section correspondante du chapitre. On recommande aux utilisateurs une lecture du chapitre préalable, afin de comprendre la logique de la progression exposée ici.</p>
-<p>Certaines étapes ci-dessous peuvent être longues en temps de calcul (jusqu’à 12h sur un PC portable <span class="math inline">\(2\)</span> processeurs <span class="math inline">\(2.7\)</span> GHz et <span class="math inline">\(16\)</span> Go de RAM). Par conséquent, on fournit avec ce script une arborescence de fichiers <em>.Rdata</em> permettant de charger le résultat de certains blocs. Se référer aux adresses de fichiers précisées dans les blocs de code, et aux emplacements correspondants dans l’arborescence des fichiers joints.</p>
+<p>Ce document constitue une présentation des codes et analyses associés au traitement de l’exemple présenté en section 3 du chapitre <em>Les modèles à équations structurelles pour l’étude des écosystèmes et socio-écosystèmes</em>. Sa segmentation suit celle de la section correspondante du chapitre. On recommande aux utilisateurs une lecture du chapitre préalable, afin de comprendre la logique de la progression exposée ici.</p>
+<p>Certaines étapes ci-dessous peuvent être longues en temps de calcul (jusqu’à 12h sur un PC portable <span class="math inline">\(2\)</span> processeurs <span class="math inline">\(2.7\)</span> GHz et <span class="math inline">\(16\)</span> Go de RAM). Par conséquent, on fournit avec ce script une arborescence de fichiers <em>.Rdata</em> permettant de charger le résultat de certains blocs. Se référer aux adresses de fichiers précisées dans les blocs de code, et aux emplacements correspondants dans l’arborescence des fichiers joints. Les fichiers volumineux contenus dans les répertoires Etape1/ et Etape2/ sont téléchargeables <a href="https://mycore.core-cloud.net/index.php/s/GjhOmW5WcTHNT2B">ici</a>.</p>
 <p>On importe l’ensemble des fonctions utiles pour les analyses à venir.</p>
 <pre class="r"><code>source(&quot;code/functions_20200722.r&quot;)</code></pre>
 <pre><code>## This is lavaan 0.6-7</code></pre>
@@ -429,7 +429,7 @@ div.tocify {
         code=3,angle=90,length=0.05
     )
     legend(x[1,1],80,c(&quot;Fontainebleau&quot;,&quot;Auberive&quot;),fill=c(2,3))</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-3-1.png" width="3000" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-3-1.png" width="960" /></p>
 <p>On constate que certaines variables diffèrent sensiblement entre les massifs. C’est un élément à garder à l’esprit lors de l’interprétation des résultats car tout effet “massif” dans les données aura tendance à être attribué à ces différences, même des effets potentiellement non liés (par exemple des effets biogéographiques sur la biodiversité). Pour contourner cette ambiguïté, on aurait besoin d’un plus grand nombre de massifs répartis de façon équilibrée dans la gamme de valeurs des différentes variables sans autocorrélation spatiale forte de ces valeurs. Le jeu de données de Larrioeu et coll. (2019) comporte un plus grand nombre de massifs, mais les variables de biodiversité mesurées diffèrent entre les massifs, ce qui contraindrait à considérer un nombre de taxons plus faibles dans l’analyse et nuirait au caractère illustratif de notre exemple.</p>
 <div id="normalisation-des-variables" class="section level2">
 <h2>Normalisation des variables</h2>
@@ -488,7 +488,7 @@ div.tocify {
         text(nrow(matS)+1.5,ncol(matS)-(i-1),seq(-1,1,0.5)[6-i],cex=0.8)
     })
     text(nrow(matS)+3.5,ncol(matS)-4.5,expression(r),font=2)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-6-1.png" width="1800" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-6-1.png" width="576" /></p>
 </div>
 <div id="construction-dun-mes-a-priori" class="section level2">
 <h2>Construction d’un MES <em>a priori</em></h2>
@@ -602,7 +602,7 @@ colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
     par(mfrow=c(1,2))
     hist(tabBootFit[indFit[1],],xlab=expression(-2*Delta[LL]),main=&quot;&quot;)
     hist(tabBootFit[indFit[2],],xlab=&quot;RMSEA&quot;,main=&quot;&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-23-1.png" width="3000" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-23-1.png" width="960" /></p>
 <p>On peut alors déterminer le quantile des statistiques observées sur les vraies observations dans leurs distributions nulles respectives.</p>
 <pre class="r"><code>    tabQHat &lt;- sapply(indFit,function(i) mean(tabBootFit[i,]&lt;vFit[i]))
     tabQHat</code></pre>
@@ -643,7 +643,7 @@ colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
         mtext(colnames(matLoad)[i],2,las=2,at=xLab,col=i,adj=1,font=2,cex=cx)
     })
     mtext(&quot;Contribution de la variable latente&quot;,1,at=0.5+off,padj=4,cex=cx)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-26-1.png" width="1800" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-26-1.png" width="576" /></p>
 <p>On constate que les variables observées <em>nb.bmh</em> et <em>rs.carab</em> ne sont pas captées par le modèle de mesure. On procède donc à un raffinement du modèle de mesure où l’on isole ces variables comme des composantes à part :</p>
 <pre class="r"><code>    lisBlocBiodiv1 &lt;- list(
         BIOFOR = c(&quot;rs.florafor&quot;,&quot;rs.oisoForNCav&quot;,&quot;rs.bryo&quot;),
@@ -727,7 +727,7 @@ colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
     par(mfrow=c(1,2))
     hist(tabBootFit[indFit[1],],xlab=expression(-2*Delta[LL]),main=&quot;&quot;)
     hist(tabBootFit[indFit[2],],xlab=&quot;RMSEA&quot;,main=&quot;&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-39-1.png" width="3000" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-39-1.png" width="960" /></p>
 <p>On peut alors déterminer le quantile des statistiques observées sur les vraies observations dans leurs distributions nulles respectives.</p>
 <pre class="r"><code>    tabQHat &lt;- sapply(indFit,function(i) mean(tabBootFit[i,]&lt;vFit[i]))
     tabQHat</code></pre>
@@ -766,7 +766,7 @@ colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
         mtext(colnames(matLoad)[i],2,las=2,at=xLab,col=i,adj=1,font=2,cex=cx)
     })
     mtext(&quot;Contribution de la variable latente&quot;,1,at=0.5+off,padj=4,cex=cx)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-42-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-42-1.png" width="480" /></p>
 <p>On constate qu’il n’y a plus de variable observées à non associées à des composantes sous-jacentes dans le modèle de mesure, on conserve ce modèle de mesure dans la suite.</p>
 <p>Comme évaluation complémentaire de l’ajustement du modèle d’analyse confirmatoire, on peut examiner visuellement l’écart entre la matrice de corrélation des variables observées qu’il prédit, et la matrice de corrélation effectivement observée dans le jeu de donnée.</p>
 <p>On commence par extraire la matrice de corrélation prédite par le modèle :</p>
@@ -823,7 +823,7 @@ colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
         expression(Delta[r]),
         font=2
     )</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-45-1.png" width="1800" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-45-1.png" width="576" /></p>
 <p>#Evaluation du modèle relationnel</p>
 <p>Cette section traite du test 2 de la Figure 3 du chapitre, visant à évaluer la qualité du modèle relationnel du MES.</p>
 <p>On part du modèle de mesure raffiné obtenu ci-dessus. On propose ajuste le modèle relationnel <em>a priori</em> (cf. Etapes préliminaires et Figure 2 du chapitre) pour s’adapter aux nouvelles composantes :</p>
@@ -866,7 +866,7 @@ x &lt;- barplot(
     las=2,ylim=c(-2,2),col=vCol,
     ylab=expression(hat(beta)),cex.lab=1.5
 )</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-51-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-51-1.png" width="480" /></p>
 <p>On a indiqué en rouge les effets de sens contraire aux attendus théoriques. La présence de ces effets contre-intuitifs suggèrent qu’il existe des corrélations entre ces variables de nature non-causales qu’il faudrait traiter en introduisant des termes de corrélation libre (de type <span class="math inline">\(\gamma\)</span>). En pratique, on retire ces relations contre-intuitive du modèle et on replace les variables expliquées comme des variables exogènes du modèle.</p>
 <pre class="r"><code>lisReg2 &lt;- list(
     &quot;BIOFOR ~ DIVESS + OPEN + BUF&quot;,
@@ -1014,7 +1014,7 @@ stopCluster(cl)</code></pre>
             main=&quot;&quot;
         )
         abline(v=mDLL_12,col=&quot;red&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-64-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-64-1.png" width="480" /></p>
 <p>Notons ici que les valeurs de log-rapport de vraisemblance ré-échantillonnées sont parfois négatives, ce qui est en théorie impossible. On attribue ce phénomène à une imprécision de l’optimisation numérique sous contrainte. On pourrait évaluer dans quelle mesure une augmentation du nombre d’itérations de l’optimiseur ou un changement d’initialisation résorberaient ce problème, mais cette exploration dépasse le périmètre de l’exposé.</p>
 <p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distribution nulle obtenue par ré-échantillonnage :</p>
 <pre class="r"><code>    qHat &lt;- mean(vecBootMDLL_12&lt;mDLL_12)
@@ -1082,7 +1082,7 @@ stopCluster(cl)</code></pre>
         expression(Delta[r]),
         font=2
     )</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-70-1.png" width="1800" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-70-1.png" width="576" /></p>
 <p>La figure ci-dessus suggère un certains nombre de relations manquantes dans le modèle (correspondat à des déviations fortes entre les deux matrices). Parmi celles-ci, il est intéressant d’introduire la relation <em>BIOSAPRO</em> <span class="math inline">\(\rightarrow\)</span> <em>BIODMH</em> car elle s’accompagne d’une justification écologique.</p>
 <p>##Construction, ajustement d’un modèle relationnel complété</p>
 <p>On complète le modèle relationnel avec la relation identifiée dans la section précédente :</p>
@@ -1170,7 +1170,7 @@ stopCluster(cl)</code></pre>
         expression(hat(gamma)),font=2,cex=1.5
     )
     mtext(&quot;B&quot;,3,adj=0,padj=-1,font=2,cex=2)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-79-1.png" width="3000" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-79-1.png" width="960" /></p>
 <p>##Test du modèle relationnel complété contre le modèle d’analyse confirmatoire</p>
 <p>On teste par un test du rapport de vraisemblance via ré-échantillonnage paramétrique si le modèle de l’analyse confirmatoire produit un meilleur ajustement aux données que ce nouveau MES complété. Comme précédemment, on utilise la statistique du rapport de vraisemblance. On relève la statistique <span class="math inline">\(-2\Delta_{LL}\)</span> du MES fondé sur le modèle relationnel complété :</p>
 <pre class="r"><code>    vFit &lt;- fitmeasures(semFit3Pos)
@@ -1318,7 +1318,7 @@ stopCluster(cl)</code></pre>
             main=&quot;&quot;
         )
         abline(v=mDLL_12_compl,col=&quot;red&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-86-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-86-1.png" width="480" /></p>
 <p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distributions nulle obtenue par ré-échantillonnage :</p>
 <pre class="r"><code>    qHat &lt;- mean(vecBootDLLCFA_3Pos&lt;mDLL_12_compl)
     qHat    </code></pre>
@@ -1415,7 +1415,7 @@ stopCluster(cl)</code></pre>
         ylab=expression(-2*Delta*L*L),cex.lab=1.5
     )
     abline(h=qchisq(0.95,1),lty=&quot;dashed&quot;,col=&quot;blue&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-91-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-91-1.png" width="480" /></p>
 <p>La limite pointillée en bleu donne pour ordre de grandeur la limite au dessus de laquelle la relation est jugée avoir une contribution sur la base d’un test asymptotique du <span class="math inline">\(\chi^2\)</span>. Néanmoins ce test n’est pas valable sur des jeux de données de petite taille, comme c’est le cas ici. On propose donc d’adopter une démarche similaire à celle des sections précédentes, fondée sur un ré-échantillonnage paramétrique, pour tester une des relations ci-dessus : <em>DMH</em> <span class="math inline">\(\rightarrow\)</span> <em>BIODMH</em>.</p>
 <pre class="r"><code>    load(paste(&quot;dat/Etape2/semFit3Pos_&quot;,4,&quot;.Rdata&quot;,sep=&quot;&quot;))
     semFit3_4Pos &lt;- semFit3Pos
@@ -1539,7 +1539,7 @@ stopCluster(cl)</code></pre>
         main=&quot;&quot;
     )
     abline(v=chiSq_3_4Pos_3Pos,col=&quot;red&quot;)</code></pre>
-<p><img src="sancristobal_files/figure-html/unnamed-chunk-95-1.png" width="1500" /></p>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-95-1.png" width="480" /></p>
 <p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distributions nulle obtenue par ré-échantillonnage :</p>
 <pre class="r"><code>    qHat &lt;- mean(chiSq_3_4Pos_3Pos&gt;vecBootChisq3BisPos)
     qHat</code></pre>

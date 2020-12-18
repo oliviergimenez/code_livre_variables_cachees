@@ -10,14 +10,9 @@ header-includes:
 
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(dpi = 300,
-                      cache = TRUE)
-```
-
 Ce document constitue une présentation des codes et analyses associés au traitement de l'exemple présenté en section 3 du chapitre *Les modèles à équations structurelles pour l'étude des écosystèmes et socio-écosystèmes*. Sa segmentation suit celle de la section correspondante du chapitre. On recommande aux utilisateurs une lecture du chapitre préalable, afin de comprendre la logique de la progression exposée ici.
 
-Certaines étapes ci-dessous peuvent être longues en temps de calcul (jusqu'à 12h sur un PC portable $2$ processeurs $2.7$ GHz et $16$ Go de RAM). Par conséquent, on fournit avec ce script une arborescence de fichiers *.Rdata* permettant de charger le résultat de certains blocs. Se référer aux adresses de fichiers précisées dans les blocs de code, et aux emplacements correspondants dans l'arborescence des fichiers joints.
+Certaines étapes ci-dessous peuvent être longues en temps de calcul (jusqu'à 12h sur un PC portable $2$ processeurs $2.7$ GHz et $16$ Go de RAM). Par conséquent, on fournit avec ce script une arborescence de fichiers *.Rdata* permettant de charger le résultat de certains blocs. Se référer aux adresses de fichiers précisées dans les blocs de code, et aux emplacements correspondants dans l'arborescence des fichiers joints. Les fichiers volumineux contenus dans les répertoires Etape1/ et Etape2/ sont téléchargeables [ici](https://mycore.core-cloud.net/index.php/s/GjhOmW5WcTHNT2B). 
 
 On importe l'ensemble des fonctions utiles pour les analyses à venir.
 
