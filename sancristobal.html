@@ -390,20 +390,1166 @@ div.tocify {
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<p>Ce document constitue une présentation des codes et analyses associés au traitement de l’exemple présenté en section 3 du chapitre <em>Les modèles à équations structurelles pour l’étude des écosystèmes et socio-écosystèmes</em> de l’ouvrage <em>Approches statistiques pour les variables cachées en écologie</em>. Sa segmentation suit celle de la section correspondante du chapitre. On recommande aux utilisateurs une lecture du chapitre préalable, afin de comprendre la logique de la progression exposée ici.</p>
+<p>Certaines étapes ci-dessous peuvent être longues en temps de calcul (jusqu’à 12h sur un PC portable <span class="math inline">\(2\)</span> processeurs <span class="math inline">\(2.7\)</span> GHz et <span class="math inline">\(16\)</span> Go de RAM). Par conséquent, on fournit avec ce script une arborescence de fichiers <em>.Rdata</em> permettant de charger le résultat de certains blocs. Se référer aux adresses de fichiers précisées dans les blocs de code, et aux emplacements correspondants dans l’arborescence des fichiers joints.</p>
+<p>On importe l’ensemble des fonctions utiles pour les analyses à venir.</p>
+<pre class="r"><code>source(&quot;code/functions_20200722.r&quot;)</code></pre>
+<pre><code>## This is lavaan 0.6-7</code></pre>
+<pre><code>## lavaan is BETA software! Please report any bugs.</code></pre>
+<pre><code>## Loading required package: carData</code></pre>
+<div id="etapes-préliminaires" class="section level1">
+<h1>Etapes préliminaires</h1>
+<p>On commence par importer le jeu de données :</p>
+<pre class="r"><code>load(&quot;dat/dataIni.Rdata&quot;)</code></pre>
+<p>On observe la moyenne de chaque variable dans chaque massif :</p>
+<pre class="r"><code>    tabMean &lt;- apply(dataIni[,-ncol(dataIni)],2,function(v){
+        return(c(
+            mean(as.numeric(v[dataIni$site!=&quot;Auberive&quot;])),
+            mean(as.numeric(v[dataIni$site==&quot;Auberive&quot;]))
+        ))
+    })
+    tabCI &lt;- apply(dataIni[,-ncol(dataIni)],2,function(v){
+        return(c(
+            1.96*sd(
+                as.numeric(v[dataIni$site!=&quot;Auberive&quot;])
+            )/sqrt(sum(dataIni$site!=&quot;Auberive&quot;)),
+            1.96*sd(
+                as.numeric(v[dataIni$site==&quot;Auberive&quot;])
+            )/sqrt(sum(dataIni$site==&quot;Auberive&quot;))
+        ))
+    })
+    par(mar=c(8,4,4,1))
+    x &lt;- barplot(tabMean,beside=TRUE,las=2,col=c(2,3))
+    arrows(
+        x0=x[1,],y0=tabMean[1,]-tabCI[1,],y1=tabMean[1,]+tabCI[1,],
+        code=3,angle=90,length=0.05
+    )
+    arrows(
+        x0=x[2,],y0=tabMean[2,]-tabCI[2,],y1=tabMean[2,]+tabCI[2,],
+        code=3,angle=90,length=0.05
+    )
+    legend(x[1,1],80,c(&quot;Fontainebleau&quot;,&quot;Auberive&quot;),fill=c(2,3))</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-3-1.png" width="3000" /></p>
+<p>On constate que certaines variables diffèrent sensiblement entre les massifs. C’est un élément à garder à l’esprit lors de l’interprétation des résultats car tout effet “massif” dans les données aura tendance à être attribué à ces différences, même des effets potentiellement non liés (par exemple des effets biogéographiques sur la biodiversité). Pour contourner cette ambiguïté, on aurait besoin d’un plus grand nombre de massifs répartis de façon équilibrée dans la gamme de valeurs des différentes variables sans autocorrélation spatiale forte de ces valeurs. Le jeu de données de Larrioeu et coll. (2019) comporte un plus grand nombre de massifs, mais les variables de biodiversité mesurées diffèrent entre les massifs, ce qui contraindrait à considérer un nombre de taxons plus faibles dans l’analyse et nuirait au caractère illustratif de notre exemple.</p>
+<div id="normalisation-des-variables" class="section level2">
+<h2>Normalisation des variables</h2>
+<p>On applique une fonction de normalisation via une transformation puissance aux variables du jeu de données :</p>
+<pre class="r"><code>    dataNorm &lt;- apply(dataIni[,-ncol(dataIni)],2,function(w){
+        v &lt;- w+1
+        normalize(v) #cf. script de fonctions
+    })</code></pre>
+<p>On élimine les variables qui dévient significativement d’une loi normale selon un test de Kolmogorov-Smirnov :</p>
+<pre class="r"><code>    indDev &lt;- which(
+        apply(dataNorm,2,
+            function(v) ks.test(v,pnorm)$p.value
+        )&lt;0.05
+    )
+    dataNorm &lt;- dataNorm[,-indDev]
+    dataNorm &lt;- as.data.frame(dataNorm)</code></pre>
+<p>Remarque : on ignore ici le caractère approximatif d’un test de Kolmogorov-Smirnov sur des données comportant des <em>ex-aequo</em>.</p>
+<p>On peut visualiser la matrice de corrélation entre les variables observées au sein du jeu de données, qui sert de base aux ajustements et tests des MES dans la suite :</p>
+<pre class="r"><code>    matS &lt;- cov(dataNorm)
+    diag(matS) &lt;- diag(matS)-10^(-15)
+    par(mar=c(10,8,4,1))
+    image(
+        1:nrow(matS),
+        1:ncol(matS),
+        matS,
+        breaks=seq(-1,1,0.5),
+        col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3)),
+        xaxt=&quot;n&quot;,yaxt=&quot;n&quot;,xlab=&quot;&quot;,ylab=&quot;&quot;,
+        xlim=c(0.5,nrow(matS)*1.3),bty=&quot;n&quot;
+    )
+    
+    ###Aspects purement graphiques###
+    polygon(
+        c(0,nrow(matS),nrow(matS),0)+0.5,
+        c(0,0,ncol(matS),ncol(matS))+0.5,
+        border=1
+    )
+    axis(
+        1,
+        at=1:nrow(matS),
+        labels=rownames(matS),
+    las=2)
+    axis(
+        2,
+        at=1:ncol(matS),
+        labels=colnames(matS),
+        las=1
+    )
+    nul &lt;- sapply(1:4,function(i){
+        polygon(nrow(matS)+3+c(0,1,1,0),
+            ncol(matS)-(i-1)+c(-1,-1,0,0),
+            border=1,col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3))[5-i]
+        )
+    })
+    nul &lt;- sapply(1:5,function(i){
+        text(nrow(matS)+1.5,ncol(matS)-(i-1),seq(-1,1,0.5)[6-i],cex=0.8)
+    })
+    text(nrow(matS)+3.5,ncol(matS)-4.5,expression(r),font=2)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-6-1.png" width="1800" /></p>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="construction-dun-mes-a-priori" class="section level2">
+<h2>Construction d’un MES <em>a priori</em></h2>
+<p>On propose un MES <em>a priori</em> sur la base des bouquets de variables observées suivants :</p>
+<pre class="r"><code>    lisBlocBiodiv &lt;- list(
+        BIOFOR = c(&quot;rs.florafor&quot;,&quot;rs.oisoForNCav&quot;,&quot;rs.bryo&quot;),
+        BIOSAPRO = c(&quot;rs.colsaproflor&quot;,&quot;rs.colsaproNFlor&quot;,&quot;rs.myco.d&quot;,&quot;rs.myco.ND&quot;),
+        BIODMH = c(&quot;rs.chirocav&quot;,&quot;rs.oisocav&quot;),
+        BIONFOR = c(&quot;rs.carab&quot;,&quot;rs.floraNFor&quot;)
+    )
+    lisBlocCov &lt;- list(
+        DIVESS = &quot;nb.ess&quot;,
+        OPEN = &quot;open&quot;,
+        TGB = &quot;nb.tgb&quot;,
+        BUF= c(&quot;bufPast&quot;,&quot;bufPres&quot;),
+        BM = c(&quot;nb.bms&quot;,&quot;nb.chand&quot;,&quot;nb.bmh&quot;),
+        DMH = c(&quot;nb.cav&quot;,&quot;nb.unbark&quot;)
+    )   
+    lisBloc &lt;- c(lisBlocBiodiv,lisBlocCov)</code></pre>
+<p>On propose un modèle relationnel <em>a priori</em> entre les composantes exposées ci-dessus:</p>
+<pre class="r"><code>lisReg0 &lt;- list(
+    &quot;BIOFOR ~ DIVESS + OPEN + BUF&quot;,
+    &quot;BIOSAPRO ~ DIVESS + OPEN + BUF + BM + TGB&quot;,
+    &quot;BIODMH ~ DMH + BUF&quot;,
+    &quot;BIONFOR ~ BUF + OPEN&quot;,
+    &quot;BM ~ TGB&quot;,
+    &quot;DMH ~ TGB&quot; 
+)</code></pre>
+<p>On peut visualiser dans une fenêtre HTML le MES obtenu à partir du modèle de mesure et du modèle relationnel ci-dessus (cf. Figure 2 du chapitre) :</p>
+<pre class="r"><code>script0 &lt;- SEMGen(lisBloc,lisReg0)  #cf script de fonctions
+semFit0 &lt;- lavaan(script0,data= dataNorm,do.fit=FALSE)
+lavaanPlot(model=semFit0)</code></pre>
+</div>
+</div>
+<div id="evaluation-du-modèle-de-mesure" class="section level1">
+<h1>Evaluation du modèle de mesure</h1>
+<p>On souhaite tester et affiner le modèle de mesure du MES <em>a priori</em> présenté en section précédente par une analyse factorielle confirmatoire (Etape 1 dans la Figure 3 du chapitre).</p>
+<p>##Construction et ajustement du modèle d’analyse confirmatoire</p>
+<p>On commence par construire le script du MES associé à l’analyse confirmatoire dans la syntaxe du package <em>lavaan</em> :</p>
+<pre class="r"><code>scriptCFA &lt;- SEMGen(lisBloc,list()) #cf script de fonctions</code></pre>
+<p>Puis on utilise <em>lavaan</em> pour ajuster le modèle aux observations :</p>
+<pre class="r"><code>fitCFA0 &lt;- lavaan(scriptCFA,data= dataNorm)</code></pre>
+<pre class="r"><code>lavInspect(fitCFA0,&quot;post.check&quot;)</code></pre>
+<pre><code>## Warning in lav_object_post_check(object): lavaan WARNING: covariance matrix of latent variables
+##                 is not positive definite;
+##                 use lavInspect(fit, &quot;cov.lv&quot;) to investigate.</code></pre>
+<pre><code>## [1] FALSE</code></pre>
+<p>On note la présence d’un warning qui indique que la matrice de variance-covariance (<em>matCovLV</em>) entre les variables latentes n’est pas définie positive, ce qui nécessite une correction. On projette la matrice de variance-covariance obtenue sur l’espace des matrices symétriques définies positives:</p>
+<pre class="r"><code>matCovLV &lt;- lavInspect(fitCFA0,&quot;cov.lv&quot;)
+D &lt;- diag(eigen(matCovLV)$values)
+indNeg &lt;- which(diag(D)&lt;0)
+DPos &lt;- D
+diag(DPos)[indNeg] &lt;- 10^(-5)
+P &lt;- eigen(matCovLV)$vectors
+matCovLVPos &lt;- P%*%DPos%*%t(P)
+rownames(matCovLVPos) &lt;- rownames(matCovLV)
+colnames(matCovLVPos) &lt;- colnames(matCovLV)</code></pre>
+<p>On réajuste ensuite les paramètres du modèle de mesure conditionnellement à cette projection :</p>
+<pre class="r"><code>scrUpdate &lt;- SEMGen(lisBloc,list(),force=matCovLVPos)</code></pre>
+<pre class="r"><code>fitCFA0Pos &lt;- lavaan(scrUpdate,data= dataNorm)</code></pre>
+<div id="test-dadéquation-du-modèle-danalyse-factorielle-confirmatoire-par-bootstrap-paramétrique" class="section level2">
+<h2>Test d’adéquation du modèle d’analyse factorielle confirmatoire par bootstrap paramétrique</h2>
+<p>On relève les statistiques <span class="math inline">\(-2\Delta_{LL}\)</span> et le <span class="math inline">\(RMSEA\)</span> du modèle d’analyse confirmatoire :</p>
+<pre class="r"><code>    vFit &lt;- fitmeasures(fitCFA0Pos)
+    indFit &lt;- match(c(&quot;chisq&quot;,&quot;rmsea&quot;),names(vFit))
+    vFit[indFit] #-2DeltaLL et RMSEA du modèle d&#39;analyse confirmatoire</code></pre>
+<pre><code>##        chisq        rmsea 
+## 273.54204147   0.08326199</code></pre>
+<p>On procède maintenant à un bootstrap paramétrique pour obtenir une distribution rééchantillonnée de ces deux statistiques sous l’hypothèse nulle que le modèle d’analyse confirmatoire suffit à décrire la structure du jeu de données.</p>
+<pre class="r"><code>    matCovEst &lt;- lavInspect(fitCFA0Pos,&quot;sigma.hat&quot;)
+    nObs &lt;- lavInspect(fitCFA0Pos,&quot;nTotal&quot;) 
+    B &lt;- 100 </code></pre>
+<p>Comme chaque ré-échantillonnage est long à traiter, on recommande de commencer par tester avec un petit nombre de répétitions <span class="math inline">\(B\)</span>. Ensuite il faudrait idéalement atteindre <span class="math inline">\(B=500\)</span> (ici, on s’est limité à <span class="math inline">\(B=100\)</span>). Pour la suite, on recommande de créer un sous répertoire de <em>root</em> (ici dénommé <em>Etape1/Boot0</em>) où les modèles issus des rééchantillonnages sont stockés. On montre ci-dessous une approche par une simple boucle. On recommande en pratique d’avoir recours à de la parallélisation pour gagner en temps de calcul.</p>
+<pre class="r"><code>    for(re in 1:B){
+        bootSamp &lt;- rmnorm(n=nObs,varcov=matCovEst) 
+        fitCFA0Boot &lt;- lavaan(scriptCFA,data=bootSamp) 
+        matCovLVBoot &lt;- lavInspect(fitCFA0Boot,&quot;cov.lv&quot;)
+        eig &lt;- eigen(matCovLVBoot)
+        if(min(eig$values)&lt;0){ 
+            D &lt;- diag(eig$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5) 
+            P &lt;- eig$vectors
+            projMatCovLVBoot &lt;- P%*%DPos%*%t(P)
+            rownames(projMatCovLVBoot) &lt;- rownames(matCovLVBoot)
+            colnames(projMatCovLVBoot) &lt;- colnames(matCovLVBoot)
+            scrUpdateBoot &lt;- SEMGen(lisBloc,list(),force=projMatCovLVBoot)
+            fitCFA0Boot &lt;- lavaan(scrUpdateBoot,data=bootSamp)
+        }
+        save(
+            fitCFA0Boot,
+            file=paste(
+                root,
+                &quot;dat/Etape1/Boot0/fitCFA0Boot_&quot;,
+                re,
+                &quot;.Rdata&quot;,
+                sep=&quot;&quot;
+            )
+        )
+    })</code></pre>
+<p>Une fois les modèles ajustés sur les échantillons simulés obtenus, on peut générer une distribution nulle des statistiques de test étudiées:</p>
+<pre class="r"><code>    indConv0 &lt;- which(sapply(1:B,function(re){
+        load(paste(&quot;dat/Etape1/Boot0/fitCFA0Boot_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        return(lavInspect(fitCFA0Boot,&quot;converged&quot;))
+    })) #Récupération des ré-échantillonnages où l&#39;estimation a convergé
+    tabBootFit &lt;- sapply(indConv0,function(re){
+        load(paste(&quot;dat/Etape1/Boot0/fitCFA0Boot_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        return(fitmeasures(fitCFA0Boot))
+    })
+    par(mfrow=c(1,2))
+    hist(tabBootFit[indFit[1],],xlab=expression(-2*Delta[LL]),main=&quot;&quot;)
+    hist(tabBootFit[indFit[2],],xlab=&quot;RMSEA&quot;,main=&quot;&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-23-1.png" width="3000" /></p>
+<p>On peut alors déterminer le quantile des statistiques observées sur les vraies observations dans leurs distributions nulles respectives.</p>
+<pre class="r"><code>    tabQHat &lt;- sapply(indFit,function(i) mean(tabBootFit[i,]&lt;vFit[i]))
+    tabQHat</code></pre>
+<pre><code>## [1] 0.83 0.81</code></pre>
+<p>et on peut déterminer un seuil théorique au dessus duquel on peut décréter que les observations donnent une statistique significativement plus grande que l’attendu sous l’hypothèse nulle avec un niveau de confiance à <span class="math inline">\(5\)</span>% :</p>
+<pre class="r"><code>    thres &lt;- 1/length(indConv0)*qbinom(0.05,length(indConv0),0.95)
+    thres</code></pre>
+<pre><code>## [1] 0.91</code></pre>
+<p>Comme les quantiles observés sont inférieurs à ce seuil, on conclut que le modèle d’analyse confirmatoire fondé sur le modèle de mesure <em>a priori</em> n’est pas rejeté.</p>
+<p>##Examen du modèle de mesure estimé et raffinements</p>
+<p>On peut visualiser le modèle de mesure estimé :</p>
+<pre class="r"><code>    matLoad &lt;- lavInspect(fitCFA0Pos,&quot;est&quot;)$lambda
+    vLoad &lt;- as.vector(matLoad)
+    vNbLoad &lt;- apply(matLoad,2,function(v) sum(v&gt;0))
+    vNamesOV &lt;- unlist(apply(matLoad,2,function(v) rownames(matLoad)[which(v&gt;0)]))
+    vLoad &lt;- vLoad[vLoad&gt;0]
+    vCol &lt;- unlist(lapply(1:length(vNbLoad),function(i) rep(i,vNbLoad[i])))
+    off &lt;- 0.1
+    cx &lt;- 1.4
+    par(mar=c(5,10,4,1))
+    x &lt;- barplot(
+        vLoad,col=vCol,
+        names.arg=&quot;&quot;,las=1,ylab=&quot;&quot;,xlim=c(0,2),xaxt=&quot;n&quot;,
+        horiz=TRUE,offset=off
+    )
+    nul &lt;- sapply(1:length(vNamesOV),function(i){
+        text(vLoad[i]+0.05+off,x[i],vNamesOV[i],pos=4,cex=cx)
+    })
+    axis(1,at=seq(0,1,0.2)+off,labels=seq(0,1,0.2),cex.axis=cx/2)
+    lisIndLat &lt;- apply(matLoad,2,function(v) which(v&gt;0))
+    nul &lt;- sapply(1:length(lisIndLat),function(i){
+        lines(c(0,1)+off,rep(x[cumsum(vNbLoad)[i]]+(x[2]-x[1])/2,2),lty=&quot;dashed&quot;)
+    })
+    nul &lt;- sapply(1:length(lisIndLat),function(i){
+        xLab &lt;- mean(x[lisIndLat[[i]]])
+        # yLab &lt;- 1.1+0.1*(i%%2)
+        # text(yLab,xLab,colnames(matLoad)[i],col=i)
+        mtext(colnames(matLoad)[i],2,las=2,at=xLab,col=i,adj=1,font=2,cex=cx)
+    })
+    mtext(&quot;Contribution de la variable latente&quot;,1,at=0.5+off,padj=4,cex=cx)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-26-1.png" width="1800" /></p>
+<p>On constate que les variables observées <em>nb.bmh</em> et <em>rs.carab</em> ne sont pas captées par le modèle de mesure. On procède donc à un raffinement du modèle de mesure où l’on isole ces variables comme des composantes à part :</p>
+<pre class="r"><code>    lisBlocBiodiv1 &lt;- list(
+        BIOFOR = c(&quot;rs.florafor&quot;,&quot;rs.oisoForNCav&quot;,&quot;rs.bryo&quot;),
+        BIOSAPRO = c(&quot;rs.colsaproflor&quot;,&quot;rs.colsaproNFlor&quot;,&quot;rs.myco.d&quot;,&quot;rs.myco.ND&quot;),
+        BIODMH = c(&quot;rs.chirocav&quot;,&quot;rs.oisocav&quot;),
+        FLORANFOR = &quot;rs.floraNFor&quot;,
+        CARAB = &quot;rs.carab&quot;
+    )
+    lisBlocCov1 &lt;- list(
+        DIVESS = &quot;nb.ess&quot;,
+        OPEN = &quot;open&quot;,
+        TGB = &quot;nb.tgb&quot;,
+        BUF= c(&quot;bufPast&quot;,&quot;bufPres&quot;),
+        BMS = c(&quot;nb.bms&quot;,&quot;nb.chand&quot;),
+        BMH = &quot;nb.bmh&quot;,
+        DMH = c(&quot;nb.cav&quot;,&quot;nb.unbark&quot;)
+    )   
+    lisBloc1 &lt;- c(lisBlocBiodiv1,lisBlocCov1)</code></pre>
+<p>##Test d’adéquation du modèle de mesure raffiné</p>
+<p>On ajuste sur les données le modèle d’analyse confirmatoire associé au modèle de mesure raffiné (en contrôlant comme précédemment le caractère défini positif de la matrice de variance-covariance des variables latentes obtenue) :</p>
+<pre class="r"><code>    scriptCFA1 &lt;- SEMGen(lisBloc1,list())</code></pre>
+<pre class="r"><code>    fitCFA1 &lt;- lavaan(scriptCFA1,data=dataNorm)</code></pre>
+<pre class="r"><code>    matCovLV &lt;- lavInspect(fitCFA1,&quot;cov.lv&quot;)
+    D &lt;- diag(eigen(matCovLV)$values)
+    indNeg &lt;- which(diag(D)&lt;0)
+    DPos &lt;- D
+    diag(DPos)[indNeg] &lt;- 10^(-5)
+    P &lt;- eigen(matCovLV)$vectors
+    matCovLVPos &lt;- P%*%DPos%*%t(P)
+    rownames(matCovLVPos) &lt;- rownames(matCovLV)
+    colnames(matCovLVPos) &lt;- colnames(matCovLV)
+    scrUpdate &lt;- SEMGen(lisBloc1,list(),force=matCovLVPos)</code></pre>
+<pre class="r"><code>    fitCFA1Pos &lt;- lavaan(scrUpdate,data= dataNorm)</code></pre>
+<p>On relève les statistiques <span class="math inline">\(-2\Delta_{LL}\)</span> et le <span class="math inline">\(RMSEA\)</span> du modèle d’analyse confirmatoire obtenu :</p>
+<pre class="r"><code>    vFit &lt;- fitmeasures(fitCFA1Pos)
+    indFit &lt;- match(c(&quot;chisq&quot;,&quot;rmsea&quot;),names(vFit))
+    vFit[indFit] #-2DeltaLL et RMSEA du modèle d&#39;analyse confirmatoire</code></pre>
+<pre><code>##      chisq      rmsea 
+## 221.091284   0.023977</code></pre>
+<p>On effectue un test d’adéquation du modèle d’analyse confirmatoire associé à ce modèle de mesure raffiné par ré-échantillonnage paramétrique.</p>
+<pre class="r"><code>    B &lt;- 100 
+    matCovEst &lt;- lavInspect(fitCFA1Pos,&quot;sigma.hat&quot;)
+    nObs &lt;- lavInspect(fitCFA1Pos,&quot;nTotal&quot;) </code></pre>
+<p>Ici on montre une approche avec parallélisation locale via le package <em>parallel</em>.</p>
+<pre class="r"><code>    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;nObs&quot;,&quot;matCovEst&quot;,&quot;scriptCFA1&quot;,&quot;lisBloc1&quot;,&quot;root&quot;))
+    lisBootCFA &lt;- parLapply(cl,1:B,function(re){ 
+        source(&quot;code/functions_20200722.r&quot;)
+        bootSamp &lt;- rmnorm(n=nObs,varcov=matCovEst)
+        fitCFA1Boot &lt;- lavaan(scriptCFA1,data=bootSamp)
+        matCovLVBoot &lt;- lavInspect(fitCFA1Boot,&quot;cov.lv&quot;)
+        eig &lt;- eigen(matCovLVBoot)
+        if(min(eig$values)&lt;0){
+            D &lt;- diag(eig$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5)
+            P &lt;- eig$vectors
+            projMatCovLVBoot &lt;- P%*%DPos%*%t(P)
+            rownames(projMatCovLVBoot) &lt;- rownames(matCovLVBoot)
+            colnames(projMatCovLVBoot) &lt;- colnames(matCovLVBoot)
+            scrUpdateBoot &lt;- SEMGen(lisBloc1,list(),force=projMatCovLVBoot)
+            fitCFA1Boot &lt;- lavaan(scrUpdateBoot,data=bootSamp)
+        }
+        save(
+            fitCFA1Boot,
+            file=paste(&quot;dat/Etape1/Boot1/fitCFA1Boot_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+        )
+        return(NULL)
+    }) 
+    stopCluster(cl) </code></pre>
+<p>Après ajustement du modèle d’analyse confirmatoire sur les échantillons simulés, on génère une distribution nulle des statistiques de test étudiées:</p>
+<pre class="r"><code>    indConv1 &lt;- which(sapply(1:B,function(re){
+        load(paste(&quot;dat/Etape1/Boot1/fitCFA1Boot_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        return(lavInspect(fitCFA1Boot,&quot;converged&quot;))
+    })) 
+    tabBootFit &lt;- sapply(indConv1,function(re){
+        load(paste(&quot;dat/Etape1/Boot1/fitCFA1Boot_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        return(fitmeasures(fitCFA1Boot))
+    })
+    par(mfrow=c(1,2))
+    hist(tabBootFit[indFit[1],],xlab=expression(-2*Delta[LL]),main=&quot;&quot;)
+    hist(tabBootFit[indFit[2],],xlab=&quot;RMSEA&quot;,main=&quot;&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-39-1.png" width="3000" /></p>
+<p>On peut alors déterminer le quantile des statistiques observées sur les vraies observations dans leurs distributions nulles respectives.</p>
+<pre class="r"><code>    tabQHat &lt;- sapply(indFit,function(i) mean(tabBootFit[i,]&lt;vFit[i]))
+    tabQHat</code></pre>
+<pre><code>## [1] 0.58 0.58</code></pre>
+<p>et on peut déterminer un seuil théorique au dessus duquel on peut décréter que les observations donnent une statistique significativement plus grande que l’attendu sous l’hypothèse nulle avec un niveau de confiance à <span class="math inline">\(5\)</span>% :</p>
+<pre class="r"><code>    thres &lt;- 1/length(indConv1)*qbinom(0.05,length(indConv1),0.95)
+    thres</code></pre>
+<pre><code>## [1] 0.91</code></pre>
+<p>On en conclut que le modèle d’analyse confirmatoire fondé sur le modèle de mesure raffiné n’est pas rejeté. On peut visualiser le modèle de mesure estimé :</p>
+<pre class="r"><code>    matLoad &lt;- lavInspect(fitCFA1Pos,&quot;est&quot;)$lambda
+    vLoad &lt;- as.vector(matLoad)
+    vNbLoad &lt;- apply(matLoad,2,function(v) sum(v&gt;0))
+    vNamesOV &lt;- unlist(apply(matLoad,2,function(v) rownames(matLoad)[which(v&gt;0)]))
+    vLoad &lt;- vLoad[vLoad&gt;0]
+    vCol &lt;- unlist(lapply(1:length(vNbLoad),function(i) rep(i,vNbLoad[i]))) 
+    off &lt;- 0.1
+    cx &lt;- 1.4
+    par(mar=c(5,10,4,1))
+    x &lt;- barplot(
+        vLoad,col=vCol,names.arg=&quot;&quot;,las=1,
+        ylab=&quot;&quot;,xlim=c(0,2),xaxt=&quot;n&quot;,horiz=TRUE,offset=off
+    )
+    nul &lt;- sapply(
+        1:length(vNamesOV),
+        function(i) text(vLoad[i]+0.05+off,x[i],vNamesOV[i],pos=4,cex=cx)
+    )
+    axis(1,at=seq(0,1,0.2)+off,labels=seq(0,1,0.2),cex.axis=cx)
+    lisIndLat &lt;- apply(matLoad,2,function(v) which(v&gt;0))
+    nul &lt;- sapply(1:length(lisIndLat),function(i){
+        lines(c(0,1)+off,rep(x[cumsum(vNbLoad)[i]]+(x[2]-x[1])/2,2),lty=&quot;dashed&quot;)
+    })
+    nul &lt;- sapply(1:length(lisIndLat),function(i){
+        xLab &lt;- mean(x[lisIndLat[[i]]])
+        # yLab &lt;- 1.1+0.1*(i%%2)
+        # text(yLab,xLab,colnames(matLoad)[i],col=i)
+        mtext(colnames(matLoad)[i],2,las=2,at=xLab,col=i,adj=1,font=2,cex=cx)
+    })
+    mtext(&quot;Contribution de la variable latente&quot;,1,at=0.5+off,padj=4,cex=cx)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-42-1.png" width="1500" /></p>
+<p>On constate qu’il n’y a plus de variable observées à non associées à des composantes sous-jacentes dans le modèle de mesure, on conserve ce modèle de mesure dans la suite.</p>
+<p>Comme évaluation complémentaire de l’ajustement du modèle d’analyse confirmatoire, on peut examiner visuellement l’écart entre la matrice de corrélation des variables observées qu’il prédit, et la matrice de corrélation effectivement observée dans le jeu de donnée.</p>
+<p>On commence par extraire la matrice de corrélation prédite par le modèle :</p>
+<pre class="r"><code>    matCovObsCFA &lt;- lavInspect(fitCFA1Pos,&quot;Sigma.hat&quot;)</code></pre>
+<p>On calcule ensuite une différence coefficient par coefficient avec la matrice de coorrélation observée dans les données :</p>
+<pre class="r"><code>    ordCFA &lt;- match(rownames(matCovObsCFA),rownames(matS))
+    matDeltaCov&lt;- matS[ordCFA,ordCFA]-matCovObsCFA</code></pre>
+<p>On peut alors visualiser sur quelles relations le modèle relationnel du MES diffère du modèle d’analyse confirmatoire, et donc dégrade sa qualité d’ajustement :</p>
+<pre class="r"><code>    par(mar=c(10,8,4,1))
+    image(
+        1:nrow(matDeltaCov),
+        1:ncol(matDeltaCov),
+        matDeltaCov,
+        breaks=seq(-0.6,0.6,0.3),
+        col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3)),
+        xaxt=&quot;n&quot;,yaxt=&quot;n&quot;,xlab=&quot;&quot;,ylab=&quot;&quot;,
+        xlim=c(0.5,nrow(matDeltaCov)*1.3),bty=&quot;n&quot;
+    )
+    
+    ###Aspects purement graphiques###
+    polygon(
+        c(0,nrow(matDeltaCov),nrow(matDeltaCov),0)+0.5,
+        c(0,0,ncol(matDeltaCov),ncol(matDeltaCov))+0.5,
+        border=1
+    )
+    axis(
+        1,
+        at=1:nrow(matDeltaCov),
+        labels=rownames(matDeltaCov),
+    las=2)
+    axis(
+        2,
+        at=1:ncol(matDeltaCov),
+        labels=colnames(matDeltaCov),
+        las=1
+    )
+    nul &lt;- sapply(1:4,function(i){
+        polygon(nrow(matDeltaCov)+3+c(0,1,1,0),
+            ncol(matDeltaCov)-(i-1)+c(-1,-1,0,0),
+            border=1,col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3))[5-i]
+        )
+    })
+    nul &lt;- sapply(1:5,function(i){
+        text(
+            nrow(matDeltaCov)+ 1.5,
+            ncol(matDeltaCov)-(i-1),
+            seq(-0.6,0.6,0.3)[6-i],
+            cex=0.8
+        )
+    })
+    text(
+        nrow(matDeltaCov)+3.5,
+        ncol(matDeltaCov)-4.5,
+        expression(Delta[r]),
+        font=2
+    )</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-45-1.png" width="1800" /></p>
+<p>#Evaluation du modèle relationnel</p>
+<p>Cette section traite du test 2 de la Figure 3 du chapitre, visant à évaluer la qualité du modèle relationnel du MES.</p>
+<p>On part du modèle de mesure raffiné obtenu ci-dessus. On propose ajuste le modèle relationnel <em>a priori</em> (cf. Etapes préliminaires et Figure 2 du chapitre) pour s’adapter aux nouvelles composantes :</p>
+<pre class="r"><code>lisReg &lt;- list(
+    &quot;BIOFOR ~ DIVESS + OPEN + BUF&quot;,
+    &quot;BIOSAPRO ~ DIVESS + OPEN + BUF + BMS + BMH + TGB&quot;,
+    &quot;BIODMH ~ DMH + BUF&quot;,
+    &quot;FLORANFOR ~ BUF + OPEN&quot;,
+    &quot;CARAB ~ BUF + OPEN&quot;,
+    &quot;BMH ~ TGB&quot;,
+    &quot;DMH ~ TGB&quot; 
+)</code></pre>
+<p>Pour lequel on génère un script compatible avec la syntaxe du package <em>lavaan</em>.</p>
+<pre class="r"><code>semScript &lt;- SEMGen(
+    lisBloc1,lisReg,record=TRUE,
+    root=&quot;dat/Etape2/&quot;,
+    id=&quot;test&quot;
+)</code></pre>
+<p>Une version texte du script a été sauvegardée dans le sous-répertoire “Etape2/” de “root” pour consultation externe. On peut visualiser le MES global ainsi obtenu dans une fenêtre HTML (cf. Figure 4 du chapitre) :</p>
+<pre class="r"><code>semFit &lt;- lavaan(semScript,data= dataNorm,do.fit=FALSE)
+lavaanPlot(model=semFit)</code></pre>
+<p>On ajuste ensuite ce modèle avec le package <em>lavaan</em> :</p>
+<pre class="r"><code>    semFit &lt;- lavaan(semScript,data= dataNorm)</code></pre>
+<p>##Visualisation des effets au sein du modèle relationnel a priori et ajustements théoriques</p>
+<p>On recense dans la figure suivante les effets estimés dans le modèle relationnel :</p>
+<pre class="r"><code>matB &lt;- lavInspect(semFit,&quot;coef&quot;)$beta
+vecB &lt;- as.vector(matB)
+names(vecB) &lt;- paste(
+    rep(colnames(matB),each=nrow(matB)),
+    &quot; -&gt; &quot;,
+    rep(rownames(matB),ncol(matB)),
+    sep=&quot;&quot;
+)
+indBet &lt;- which(abs(vecB)&gt;0)
+vCol &lt;- rep(&quot;grey&quot;,length(indBet))
+vCol[c(8,9,15)] &lt;- &quot;red&quot;
+par(mar=c(10,8,4,1))
+x &lt;- barplot(
+    vecB[indBet],
+    las=2,ylim=c(-2,2),col=vCol,
+    ylab=expression(hat(beta)),cex.lab=1.5
+)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-51-1.png" width="1500" /></p>
+<p>On a indiqué en rouge les effets de sens contraire aux attendus théoriques. La présence de ces effets contre-intuitifs suggèrent qu’il existe des corrélations entre ces variables de nature non-causales qu’il faudrait traiter en introduisant des termes de corrélation libre (de type <span class="math inline">\(\gamma\)</span>). En pratique, on retire ces relations contre-intuitive du modèle et on replace les variables expliquées comme des variables exogènes du modèle.</p>
+<pre class="r"><code>lisReg2 &lt;- list(
+    &quot;BIOFOR ~ DIVESS + OPEN + BUF&quot;,
+    &quot;BIODMH ~ DMH + BUF&quot;,
+    &quot;FLORANFOR ~ BUF + OPEN&quot;,
+    &quot;CARAB ~ BUF + OPEN&quot;
+)
+semScript2 &lt;- SEMGen(lisBloc1,lisReg2)</code></pre>
+<pre class="r"><code>semFit2 &lt;- lavaan(semScript2,data= dataNorm,do.fit=FALSE)
+lavaanPlot(model=semFit2)</code></pre>
+<pre class="r"><code>semFit2 &lt;- lavaan(semScript2,data= dataNorm)</code></pre>
+<pre class="r"><code>matCovLV &lt;- lavInspect(semFit2,&quot;cov.lv&quot;)
+indRem &lt;- match(c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),rownames(matCovLV))
+matCovLV &lt;- matCovLV[-indRem,-indRem]
+D &lt;- diag(eigen(matCovLV)$values)
+indNeg &lt;- which(diag(D)&lt;0)
+DPos &lt;- D
+diag(DPos)[indNeg] &lt;- 10^(-5)
+P &lt;- eigen(matCovLV)$vectors
+matCovLVPos &lt;- P%*%DPos%*%t(P)
+rownames(matCovLVPos) &lt;- rownames(matCovLV)
+colnames(matCovLVPos) &lt;- colnames(matCovLV)
+scrUpdate2 &lt;- SEMGen(lisBloc1,lisReg2,force=matCovLVPos)</code></pre>
+<pre class="r"><code>semFit2Pos &lt;- lavaan(scrUpdate2,data=dataNorm,start=semFit2)</code></pre>
+<p>##Test d’adéquation du modèle ajusté aux données</p>
+<p>On compare le modèle MES fondé sur le modèle relationnel ci-dessus au modèle d’analyse confirmatoire sélectionné dans la section précédente (qui contient toutes les relations possibles entre les composantes). On relève les statistiques <span class="math inline">\(-2\Delta_{LL}\)</span> du MES fondé sur le modèle relationnel :</p>
+<pre class="r"><code>    vFit &lt;- fitmeasures(semFit2Pos)
+    mDLL_1 &lt;- vFit[match(&quot;chisq&quot;,names(vFit))]
+    mDLL_1</code></pre>
+<pre><code>##    chisq 
+## 268.8651</code></pre>
+<p>et celles du modèle d’analyse confirmatoire fondé sur le modèle de mesure seul :</p>
+<pre class="r"><code>    vFit_CFA &lt;- fitmeasures(fitCFA1Pos)
+    mDLL_2 &lt;- vFit_CFA[match(&quot;chisq&quot;,names(vFit_CFA))] 
+    mDLL_2</code></pre>
+<pre><code>##    chisq 
+## 221.0913</code></pre>
+<p>On peut alors calculer la statistique du rapport de vraisemblance entre les deux modèles :</p>
+<pre class="r"><code>    mDLL_12 &lt;- mDLL_1 - mDLL_2
+    mDLL_12</code></pre>
+<pre><code>##    chisq 
+## 47.77377</code></pre>
+<p>Pour déterminer si cette statistique est supérieure à l’attendu sous l’hypothèse nulle que le modèle relationnel considéré ici est le bon, on a recours à un test de modèle emboîté par ré-échantillonnage paramétrique. On simule des donné avec le MES fondé sur le modèle relationnel à l’étude, et on réajuste le même MES ainsi que le modèle d’analyse confirmatoire sur ces données simulées :</p>
+<pre class="r"><code>matCovEst &lt;- lavInspect(semFit2Pos,&quot;sigma.hat&quot;)
+nObs &lt;- lavInspect(semFit2Pos,&quot;nTotal&quot;) 
+B &lt;- 100 </code></pre>
+<pre class="r"><code>cl &lt;- makeCluster(4)
+clusterExport(cl,c(&quot;nObs&quot;,&quot;matCovEst&quot;,&quot;semScript2&quot;,&quot;root&quot;,&quot;lisReg2&quot;,&quot;lisBloc1&quot;))    
+parLapply(cl,(1:B),function(re){ 
+    source(&quot;code/functions_20200722.r&quot;)
+    bootSamp &lt;- rmnorm(n=nObs,varcov=matCovEst)
+    semFitBoot2 &lt;- lavaan(semScript2,data=bootSamp)
+    save(
+        semFitBoot2,
+        file=paste(&quot;dat/Etape2/Boot2/semFitBoot2_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+    )
+    if(!lavInspect(semFitBoot2,&quot;post.check&quot;)){
+        matCovLV &lt;- lavInspect(semFitBoot2,&quot;cov.lv&quot;)
+        indRem &lt;- match(c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),rownames(matCovLV))
+        matCovLV &lt;- matCovLV[-indRem,-indRem]
+        D &lt;- diag(eigen(matCovLV)$values)
+        indNeg &lt;- which(diag(D)&lt;0)
+        DPos &lt;- D
+        diag(DPos)[indNeg] &lt;- 10^(-5)
+        P &lt;- eigen(matCovLV)$vectors
+        matCovLVPos &lt;- P%*%DPos%*%t(P)
+        rownames(matCovLVPos) &lt;- rownames(matCovLV)
+        colnames(matCovLVPos) &lt;- colnames(matCovLV)
+        scrUpdateBoot2 &lt;- SEMGen(lisBloc1,lisReg2,force=matCovLVPos)
+        semFitBoot2Pos &lt;- lavaan(scrUpdateBoot2,data=bootSamp)
+    } else{
+        semFitBoot2Pos &lt;- semFitBoot2
+    }
+    save(
+        semFitBoot2Pos,
+        file=paste(&quot;dat/Etape2/Boot2Pos/semFitBoot2Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+    )
+    return(NULL)
+}) 
+stopCluster(cl)
+cl &lt;- makeCluster(4)
+clusterExport(cl,c(&quot;nObs&quot;,&quot;root&quot;,&quot;scriptCFA1&quot;,&quot;lisBloc1&quot;))
+parLapply(cl,1:B,function(re){ 
+    source(&quot;functions_20200722.r&quot;)
+    load(paste(&quot;dat/Etape2/Boot2Pos/semFitBoot2Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+    bootSamp &lt;- lavInspect(semFitBoot2Pos,&quot;data&quot;)
+    semFitCFABoot2 &lt;- lavaan(scriptCFA1,data=bootSamp)
+    save(
+        semFitCFABoot2,
+        file=paste(&quot;dat/Etape2/CFABoot2/semFitCFABoot2_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+    )
+    if(!lavInspect(semFitCFABoot2,&quot;post.check&quot;)){
+        matCovLV &lt;- lavInspect(semFitCFABoot2,&quot;cov.lv&quot;)
+        D &lt;- diag(eigen(matCovLV)$values)
+        indNeg &lt;- which(diag(D)&lt;0)
+        DPos &lt;- D
+        diag(DPos)[indNeg] &lt;- 10^(-5) 
+        P &lt;- eigen(matCovLV)$vectors
+        matCovLVPos &lt;- P%*%DPos%*%t(P)
+        rownames(matCovLVPos) &lt;- rownames(matCovLV)
+        colnames(matCovLVPos) &lt;- colnames(matCovLV)
+        scrUpdateCFABoot2 &lt;- SEMGen(lisBloc1,list(),force=matCovLVPos)
+        semFitCFABoot2Pos &lt;- lavaan(scrUpdateCFABoot2,data=bootSamp)
+    } else{
+        semFitCFABoot2Pos  &lt;- semFitCFABoot2
+    }
+    save(
+        semFitCFABoot2Pos,
+        file=paste(&quot;dat/Etape2/CFABoot2Pos/semFitCFABoot2Pos_&quot;,re,&quot;.Rdata&quot;,
+        sep=&quot;&quot;)
+    )
+    return(NULL)
+}) 
+stopCluster(cl)</code></pre>
+<p>Une fois ces modèles ajustés, on peut générer une distribution du rapport de vraisemblance entre les deux modèles sous l’hypothèse nulle :</p>
+<pre class="r"><code>        indConvCFA_2Pos &lt;- which(sapply(1:B,function(re){
+            load(paste(
+                    &quot;dat/Etape2/CFABoot2Pos/semFitCFABoot2Pos_&quot;,
+                    re,
+                    &quot;.Rdata&quot;,
+                    sep=&quot;&quot;
+            ))
+            load(paste(&quot;dat/Etape2/Boot2Pos/semFitBoot2Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+            conv &lt;- lavInspect(semFitCFABoot2Pos,&quot;converged&quot;)
+            conv2 &lt;- lavInspect(semFitBoot2Pos,&quot;converged&quot;)
+            return(conv * conv2 ==1)
+        }))
+        vecBootMDLL_12 &lt;- sapply(indConvCFA_2Pos,function(re){
+            load(paste(
+                &quot;dat/Etape2/CFABoot2Pos/semFitCFABoot2Pos_&quot;,
+                re,
+                &quot;.Rdata&quot;,
+                sep=&quot;&quot;
+            ))
+            load(paste(&quot;dat/Etape2/Boot2Pos/semFitBoot2Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+            vFit_2 &lt;- fitmeasures(semFitCFABoot2Pos)
+            vFit_1 &lt;- fitmeasures(semFitBoot2Pos)
+            mLL_2 &lt;- vFit_2[match(&quot;chisq&quot;,names(vFit_2))]
+            mLL_1 &lt;- vFit_1[match(&quot;chisq&quot;,names(vFit_1))]
+            return(mLL_1 - mLL_2)
+        })
+        hist(
+            vecBootMDLL_12,
+            xlab=expression((-2*Delta[LL]^1)-(-2*Delta[LL]^2)),
+            main=&quot;&quot;
+        )
+        abline(v=mDLL_12,col=&quot;red&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-64-1.png" width="1500" /></p>
+<p>Notons ici que les valeurs de log-rapport de vraisemblance ré-échantillonnées sont parfois négatives, ce qui est en théorie impossible. On attribue ce phénomène à une imprécision de l’optimisation numérique sous contrainte. On pourrait évaluer dans quelle mesure une augmentation du nombre d’itérations de l’optimiseur ou un changement d’initialisation résorberaient ce problème, mais cette exploration dépasse le périmètre de l’exposé.</p>
+<p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distribution nulle obtenue par ré-échantillonnage :</p>
+<pre class="r"><code>    qHat &lt;- mean(vecBootMDLL_12&lt;mDLL_12)
+    qHat    </code></pre>
+<pre><code>## [1] 0.9791667</code></pre>
+<p>et on peut déterminer un seuil théorique au dessus duquel on peut décréter que les observations donnent une statistique significativement plus grande que l’attendu sous l’hypothèse nulle avec un niveau de confiance à <span class="math inline">\(5\)</span>% :</p>
+<pre class="r"><code>    thres &lt;- 1/length(indConvCFA_2Pos)*qbinom(0.05,length(indConvCFA_2Pos),0.95)
+    thres</code></pre>
+<pre><code>## [1] 0.90625</code></pre>
+<p>On en conclut que le MES fondé sur le modèle relationnel étudié est significativement moins bon que le modèle d’analyse confirmatoire ce qui suggère qu’il manque des relations dans le modèle relationnel.</p>
+<p>##A la recherche des relations manquantes dans le modèle relationnel</p>
+<p>Pour identifier, parmi les relations entre variables latentes prédites par le modèle d’analyse confirmatoire, celles qui sont mal captées par le modèle relationnel considéré, on compare visuellement les matrices de corrélation entre variables latentes prédites par les deux modèles.</p>
+<p>On commence par extraire la matrice de corrélation entre les variables latentes prédite par le MES à l’étude :</p>
+<pre class="r"><code>    matCovLat2 &lt;- lavInspect(semFit2Pos,&quot;cov.lv&quot;)</code></pre>
+<p>ainsi que celle du modèle d’analyse confirmatoire :</p>
+<pre class="r"><code>    matCovLatCFA &lt;- lavInspect(fitCFA1Pos,&quot;cov.lv&quot;)</code></pre>
+<p>et on calcule une différence coefficients par coefficients :</p>
+<pre class="r"><code>    matDeltaCovLatCFA &lt;- matCovLatCFA-matCovLat2</code></pre>
+<p>On peut alors visualiser sur quelles relations le modèle relationnel du MES diffère su modèle d’analyse confirmatoire, et donc dégrade sa qualité d’ajustement :</p>
+<pre class="r"><code>    par(mar=c(10,8,4,1))
+    image(
+        1:nrow(matDeltaCovLatCFA),
+        1:ncol(matDeltaCovLatCFA),
+        matDeltaCovLatCFA,
+        breaks=seq(-0.5,0.5,0.25),
+        col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3)),
+        xaxt=&quot;n&quot;,yaxt=&quot;n&quot;,xlab=&quot;&quot;,ylab=&quot;&quot;,
+        xlim=c(0.5,nrow(matDeltaCovLatCFA)*1.3),bty=&quot;n&quot;
+    )
+    
+    ###Aspects purement graphiques###
+    polygon(
+        c(0,nrow(matDeltaCovLatCFA),nrow(matDeltaCovLatCFA),0)+0.5,
+        c(0,0,ncol(matDeltaCovLatCFA),ncol(matDeltaCovLatCFA))+0.5,
+        border=1
+    )
+    axis(
+        1,
+        at=1:nrow(matDeltaCovLatCFA),
+        labels=rownames(matDeltaCovLatCFA),
+    las=2)
+    axis(
+        2,
+        at=1:ncol(matDeltaCovLatCFA),
+        labels=colnames(matDeltaCovLatCFA),
+        las=1
+    )
+    nul &lt;- sapply(1:4,function(i){
+        polygon(nrow(matDeltaCovLatCFA)+2+c(0,1,1,0),
+            ncol(matDeltaCovLatCFA)-(i-1)+c(-1,-1,0,0),
+            border=1,col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3))[5-i]
+        )
+    })
+    nul &lt;- sapply(1:5,function(i){
+        text(
+            nrow(matDeltaCovLatCFA)+1.25,
+            ncol(matDeltaCovLatCFA)-(i-1),
+            seq(-0.5,0.5,0.25)[6-i],
+            cex=0.8
+        )
+    })
+    text(
+        nrow(matDeltaCovLatCFA)+2.5,
+        ncol(matDeltaCovLatCFA)-4.5,
+        expression(Delta[r]),
+        font=2
+    )</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-70-1.png" width="1800" /></p>
+<p>La figure ci-dessus suggère un certains nombre de relations manquantes dans le modèle (correspondat à des déviations fortes entre les deux matrices). Parmi celles-ci, il est intéressant d’introduire la relation <em>BIOSAPRO</em> <span class="math inline">\(\rightarrow\)</span> <em>BIODMH</em> car elle s’accompagne d’une justification écologique.</p>
+<p>##Construction, ajustement d’un modèle relationnel complété</p>
+<p>On complète le modèle relationnel avec la relation identifiée dans la section précédente :</p>
+<pre class="r"><code>lisReg3 &lt;- list(
+    &quot;BIOFOR ~ DIVESS + OPEN + BUF&quot;,
+    &quot;BIODMH ~ DMH + BUF + BIOSAPRO&quot;,
+    &quot;FLORANFOR ~ BUF + OPEN&quot;,
+    &quot;CARAB ~ BUF + OPEN&quot;
+)</code></pre>
+<p>On génère le script du MES associé :</p>
+<pre class="r"><code>semScript3 &lt;- SEMGen(lisBloc1,lisReg3)</code></pre>
+<p>On ajuste ce nouveau MES sur les données, en contrôlant le caractère positif de la matrice de covariance entre les variables latentes exogènes du modèle :</p>
+<pre class="r"><code>    semFit3 &lt;- lavaan(semScript3,data=dataNorm)</code></pre>
+<pre class="r"><code>    matCovLV &lt;- lavInspect(semFit3,&quot;cov.lv&quot;)
+    indRem &lt;- match(c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),rownames(matCovLV))
+    matCovLV &lt;- matCovLV[-indRem,-indRem]
+    D &lt;- diag(eigen(matCovLV)$values)
+    indNeg &lt;- which(diag(D)&lt;0)
+    DPos &lt;- D
+    diag(DPos)[indNeg] &lt;- 10^(-5)
+    P &lt;- eigen(matCovLV)$vectors
+    matCovLVPos &lt;- P%*%DPos%*%t(P)
+    rownames(matCovLVPos) &lt;- rownames(matCovLV)
+    colnames(matCovLVPos) &lt;- colnames(matCovLV)
+    scrUpdate3 &lt;- SEMGen(lisBloc1,lisReg3,force=matCovLVPos)</code></pre>
+<pre class="r"><code>    semFit3Pos &lt;- lavaan(scrUpdate3,data=dataNorm)</code></pre>
+<p>On peut visualiser ce nouveau modèle dans une fenêtre <em>HTML</em>:</p>
+<pre class="r"><code>lavaanPlot(model=semFit3Pos)    </code></pre>
+<p>On récapitule les coefficients estimés dans le MES complété ci-dessous :</p>
+<pre class="r"><code>    matB3Pos &lt;- lavInspect(semFit3Pos,&quot;coef&quot;)$beta
+    vecB3Pos &lt;- as.vector(matB3Pos)
+    indBet3Pos &lt;- which(abs(vecB3Pos)&gt;0)
+    names(vecB3Pos) &lt;- paste(
+        rep(colnames(matB3Pos),each=nrow(matB3Pos)),
+        &quot; -&gt; &quot;,
+        rep(rownames(matB3Pos),ncol(matB3Pos)),
+        sep=&quot;&quot;
+    )
+    matCovLV &lt;- lavInspect(semFit3,&quot;cov.lv&quot;)
+    indRem &lt;- match(c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),rownames(matCovLV))
+    matCovLV &lt;- matCovLV[-indRem,-indRem]
+    par(mar=c(10,8,4,1),mfrow=c(1,2))
+    x &lt;- barplot(
+        vecB3Pos[indBet3Pos],
+        las=2,
+        ylim=c(-2,2),
+        ylab=expression(hat(beta)),
+        cex.lab=1.5
+    )
+    mtext(&quot;A&quot;,3,adj=0,padj=-1,font=2,cex=2)
+    brks &lt;- seq(-1.2,1.2,0.6)
+    image(1:nrow(matCovLV),1:ncol(matCovLV),matCovLV,
+        xaxt=&quot;n&quot;,yaxt=&quot;n&quot;,xlab=&quot;&quot;,ylab=&quot;&quot;,xlim=c(0.5,nrow(matCovLV)+2.5),
+        breaks=brks,col=rgb(seq(0,1,1/3),0,seq(1,0,-1/3)),
+        bty=&quot;n&quot;
+    )
+    axis(1,at=1:nrow(matCovLV),rownames(matCovLV),las=2,cex.axis=0.8)
+    axis(2,at=1:ncol(matCovLV),colnames(matCovLV),las=1,cex.axis=0.8)
+    polygon(
+        x=c(0.5,nrow(matCovLV)+0.5,nrow(matCovLV)+0.5,0.5),
+        y=c(0.5,0.5,ncol(matCovLV)+0.5,ncol(matCovLV)+0.5),
+        border=1
+    )
+    nul &lt;- sapply(1:4,function(i){ 
+        polygon(
+            x = c(
+                nrow(matCovLV)+1.5,
+                nrow(matCovLV)+2.5,
+                nrow(matCovLV)+2.5,
+                nrow(matCovLV)+1.5
+            ),
+            y = c(
+                ncol(matCovLV)-i,
+                ncol(matCovLV)-i,
+                ncol(matCovLV)-i+1,
+                ncol(matCovLV)-i+1
+            ),
+            col = rgb(seq(0,1,1/3),0,seq(1,0,-1/3))[5-i]
+        )
+        text(nrow(matCovLV)+1,ncol(matCovLV)-i,signif(brks[5-i],1))
+    })
+    text(nrow(matCovLV)+1,ncol(matCovLV),signif(brks[5],1))
+    text(
+        nrow(matCovLV)+2,ncol(matCovLV)-length(brks)+0.5,
+        expression(hat(gamma)),font=2,cex=1.5
+    )
+    mtext(&quot;B&quot;,3,adj=0,padj=-1,font=2,cex=2)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-79-1.png" width="3000" /></p>
+<p>##Test du modèle relationnel complété contre le modèle d’analyse confirmatoire</p>
+<p>On teste par un test du rapport de vraisemblance via ré-échantillonnage paramétrique si le modèle de l’analyse confirmatoire produit un meilleur ajustement aux données que ce nouveau MES complété. Comme précédemment, on utilise la statistique du rapport de vraisemblance. On relève la statistique <span class="math inline">\(-2\Delta_{LL}\)</span> du MES fondé sur le modèle relationnel complété :</p>
+<pre class="r"><code>    vFit &lt;- fitmeasures(semFit3Pos)
+    mDLL_1_compl &lt;- vFit[match(&quot;chisq&quot;,names(vFit))]
+    mDLL_1_compl</code></pre>
+<pre><code>##    chisq 
+## 257.2667</code></pre>
+<p>et on rappelle celle du modèle d’analyse confirmatoire :</p>
+<pre class="r"><code>    mDLL_2</code></pre>
+<pre><code>##    chisq 
+## 221.0913</code></pre>
+<p>On peut alors calculer la statistique du rapport de vraisemblance entre les deux modèles :</p>
+<pre class="r"><code>    mDLL_12_compl &lt;- mDLL_1_compl - mDLL_2
+    mDLL_12_compl</code></pre>
+<pre><code>##    chisq 
+## 36.17543</code></pre>
+<p>On commence par simuler des jeux de données virtuels à partir du MES complété ajusté sur les données observées, puis à ré-ajuster le MES sur chacun de ces jeux de données.</p>
+<pre class="r"><code>    B &lt;- 100 
+    matCovEst &lt;- lavInspect(semFit3Pos,&quot;sigma.hat&quot;)
+    nObs &lt;- lavInspect(semFit3Pos,&quot;nTotal&quot;) </code></pre>
+<pre class="r"><code>    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;nObs&quot;,&quot;matCovEst&quot;,&quot;semScript3&quot;,&quot;root&quot;))
+    parLapply(cl,1:B,function(re){ 
+        source(&quot;functions_20200722.r&quot;)
+        bootSamp &lt;- rmnorm(n=nObs,varcov=matCovEst)
+        semFitBoot3 &lt;- lavaan(semScript3,data=bootSamp)
+        save(
+            semFitBoot3,
+            file=paste(&quot;dat/Etape2/Boot3/semFitBoot3_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+        )
+        return(NULL)
+    }) 
+    stopCluster(cl)
+    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;lisBloc1&quot;,&quot;lisReg3&quot;,&quot;root&quot;))
+    parLapply(cl,(1:B),function(re){ 
+        source(&quot;functions_20200722.r&quot;)
+        load(paste(&quot;dat/Etape2/Boot3/semFitBoot3_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        if(!lavInspect(semFitBoot3,&quot;post.check&quot;)){
+            matCovLV &lt;- lavInspect(semFitBoot3,&quot;cov.lv&quot;)
+            indRem &lt;- match(
+                c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),
+                rownames(matCovLV)
+            )
+            matCovLV &lt;- matCovLV[-indRem,-indRem]
+            D &lt;- diag(eigen(matCovLV)$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5)
+            P &lt;- eigen(matCovLV)$vectors
+            matCovLVPos &lt;- P%*%DPos%*%t(P)
+            rownames(matCovLVPos) &lt;- rownames(matCovLV)
+            colnames(matCovLVPos) &lt;- colnames(matCovLV)
+            scrUpdateBoot3 &lt;- SEMGen(lisBloc1,lisReg3,force=matCovLVPos)
+            bootSamp &lt;- lavInspect(semFitBoot3,&quot;data&quot;)
+            semFitBoot3Pos &lt;- lavaan(scrUpdateBoot3,data=bootSamp)
+        } else{
+            semFitBoot3Pos &lt;- semFitBoot3
+        }
+        save(
+            semFitBoot3Pos,
+            file=paste(&quot;dat/Etape2/Boot3Pos/semFitBoot3Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+        )
+        return(NULL)
+    }) 
+    stopCluster(cl) </code></pre>
+<p>On ajuste ensuite le modèle d’analyse confirmatoire sur ces mêmes jeux de données simulées :</p>
+<pre class="r"><code>    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;nObs&quot;,&quot;root&quot;,&quot;scriptCFA1&quot;))
+    parLapply(cl,1:B,function(re){ 
+        source(&quot;functions_20200722.r&quot;)
+        load(paste(&quot;dat/Etape2/Boot3Pos/semFitBoot3Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        bootSamp &lt;- lavInspect(semFitBoot3Pos,&quot;data&quot;)
+        semFitCFABoot3 &lt;- lavaan(scriptCFA1,data=bootSamp)
+        save(
+            semFitCFABoot3,
+            file=paste(&quot;dat/Etape2/CFABoot3/semFitCFABoot3_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;)
+        )
+        return(NULL)
+    }) 
+    stopCluster(cl)
+    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;lisBloc1&quot;,&quot;root&quot;))
+    parLapply(cl,1:B,function(re){ 
+        source(&quot;functions_20200722.r&quot;)
+        load(paste(&quot;dat/Etape2/CFABoot3/semFitCFABoot3_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        if(!lavInspect(semFitCFABoot3,&quot;post.check&quot;)){
+            matCovLV &lt;- lavInspect(semFitCFABoot3,&quot;cov.lv&quot;)
+            D &lt;- diag(eigen(matCovLV)$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5)
+            P &lt;- eigen(matCovLV)$vectors
+            matCovLVPos &lt;- P%*%DPos%*%t(P)
+            rownames(matCovLVPos) &lt;- rownames(matCovLV)
+            colnames(matCovLVPos) &lt;- colnames(matCovLV)
+            scrUpdateCFABoot3 &lt;- SEMGen(lisBloc1,list(),force=matCovLVPos)
+            bootSamp &lt;- lavInspect(semFitCFABoot3,&quot;data&quot;)
+            semFitCFABoot3Pos &lt;- lavaan(scrUpdateCFABoot3,data=bootSamp)
+        } else{
+            semFitCFABoot3Pos  &lt;- semFitCFABoot3
+        }
+        save(
+            semFitCFABoot3Pos,
+            file=paste(
+                &quot;dat/Etape2/CFABoot3Pos/semFitCFABoot3Pos_&quot;,
+                re,
+                &quot;.Rdata&quot;,
+                sep=&quot;&quot;
+            )
+        )
+        return(NULL)
+    }) 
+    stopCluster(cl)</code></pre>
+<p>On obtient alors une distribution empirique de la statistique du rapport de vraisemblance sur ces jeux de données virtuels :</p>
+<pre class="r"><code>        indConvCFA_3Pos &lt;- which(sapply(1:B,function(re){
+            load(paste(
+                &quot;dat/Etape2/CFABoot3Pos/semFitCFABoot3Pos_&quot;,
+                re,
+                &quot;.Rdata&quot;,
+                sep=&quot;&quot;
+            ))
+            load(paste(&quot;dat/Etape2/Boot3Pos/semFitBoot3Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+            conv &lt;- lavInspect(semFitCFABoot3Pos,&quot;converged&quot;)
+            conv2 &lt;- lavInspect(semFitBoot3Pos,&quot;converged&quot;)
+            conv3 &lt;- lavInspect(semFitBoot3Pos,&quot;iter&quot;)&lt;20000
+            conv4 &lt;- lavInspect(semFitCFABoot3Pos,&quot;iter&quot;)&lt;20000
+            return(conv * conv2 * conv3 * conv4 ==1)
+        }))
+        vecBootDLLCFA_3Pos &lt;- sapply(indConvCFA_3Pos,function(re){
+            load(paste(
+                &quot;dat/Etape2/CFABoot3Pos/semFitCFABoot3Pos_&quot;,
+                re,
+                &quot;.Rdata&quot;,
+                sep=&quot;&quot;
+            ))
+            load(paste(&quot;dat/Etape2/Boot3Pos/semFitBoot3Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+            LL_CFA3Pos &lt;- fitmeasures(semFitCFABoot3Pos)[17]
+            LL_3Pos &lt;- fitmeasures(semFitBoot3Pos)[17]
+            return(2*(LL_CFA3Pos-LL_3Pos))
+        })
+        hist(
+            vecBootDLLCFA_3Pos,
+            xlab=expression((-2*Delta[LL]^MES)-(-2*Delta[LL]^CFA)),
+            main=&quot;&quot;
+        )
+        abline(v=mDLL_12_compl,col=&quot;red&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-86-1.png" width="1500" /></p>
+<p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distributions nulle obtenue par ré-échantillonnage :</p>
+<pre class="r"><code>    qHat &lt;- mean(vecBootDLLCFA_3Pos&lt;mDLL_12_compl)
+    qHat    </code></pre>
+<pre><code>## [1] 0.7282609</code></pre>
+<p>et on peut déterminer un seuil théorique au dessus duquel on peut décréter que les observations donnent une statistique significativement plus grande que l’attendu sous l’hypothèse nulle avec un niveau de confiance à <span class="math inline">\(5\)</span>% :</p>
+<pre class="r"><code>    thres &lt;- 1/length(indConvCFA_3Pos)*qbinom(0.05,length(indConvCFA_3Pos),0.95)
+    thres</code></pre>
+<pre><code>## [1] 0.9130435</code></pre>
+<p>On conlut que le modèle d’analyse confirmatoire n’a pas une vraisemblance significativement plus forte que le MES complété. On en conclut qu’il n’y a pas à ce stade d’élément suggérant d’ajouter de nouvelles relations dans le modèle relationnel, et on décide de conserver le MES en l’état.</p>
+<p>#Tests sur la significativité des relations du modèle relationnel</p>
+<p>Dans la section précédente, on a conclu que le modèle relationnel ne nécessitait pas d’être complété. On peut désormais souhaiter tester si toutes les relations contenues dans le modèle relationnel sont nécessaires. On ébauche ici une approche de test relation par relation dans le modèle relationnel, correspondant au test 3 de la Figure 3 du chapitre. On commence par générer l’ensemble des sous-modèles relationnels où on a neutralisé une des relations du modèle :</p>
+<pre class="r"><code>    lisLisReg3 &lt;- rem1Reg(lisReg3)
+    lisLisReg3[[1]]</code></pre>
+<pre><code>## [[1]]
+## [1] &quot;BIOFOR ~ OPEN + BUF&quot;
+## 
+## [[2]]
+## [1] &quot;BIODMH ~ DMH + BUF + BIOSAPRO&quot;
+## 
+## [[3]]
+## [1] &quot;FLORANFOR ~ BUF + OPEN&quot;
+## 
+## [[4]]
+## [1] &quot;CARAB ~ BUF + OPEN&quot;</code></pre>
+<pre class="r"><code>    lisLisReg3[[2]]</code></pre>
+<pre><code>## [[1]]
+## [1] &quot;BIOFOR ~ DIVESS + BUF&quot;
+## 
+## [[2]]
+## [1] &quot;BIODMH ~ DMH + BUF + BIOSAPRO&quot;
+## 
+## [[3]]
+## [1] &quot;FLORANFOR ~ BUF + OPEN&quot;
+## 
+## [[4]]
+## [1] &quot;CARAB ~ BUF + OPEN&quot;</code></pre>
+<pre class="r"><code>    #etc...</code></pre>
+<p>On a en tout 10 sous-modèles, que l’on ajuste sur les données observées :</p>
+<pre class="r"><code>    lapply(1:length(lisLisReg3),function(ind){
+        semScript3 &lt;- SEMGen(lisBloc,lisLisReg3[[ind]])
+        semFit3 &lt;- lavaan(semScript3,data= data.frame(dataBiodivNorm,dataCovNorm))
+        save(semFit3,file=paste(&quot;dat/Etape2/semFit3_&quot;,ind,&quot;.Rdata&quot;,sep=&quot;&quot;))
+    })
+    lapply(1:length(lisLisReg3),function(ind){
+        load(paste(&quot;dat/Etape2/semFit3_&quot;,ind,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        if(!lavInspect(semFit3,&quot;post.check&quot;)){
+            matCovLV &lt;- lavInspect(semFit3,&quot;cov.lv&quot;)
+            indRem &lt;- match(
+                c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),
+                rownames(matCovLV)
+            )
+            matCovLV &lt;- matCovLV[-indRem,-indRem]
+            D &lt;- diag(eigen(matCovLV)$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5)
+            P &lt;- eigen(matCovLV)$vectors
+            matCovLVPos &lt;- P%*%DPos%*%t(P)
+            rownames(matCovLVPos) &lt;- rownames(matCovLV)
+            colnames(matCovLVPos) &lt;- colnames(matCovLV)
+            scrUpdate3 &lt;- SEMGen(lisBloc,lisLisReg3[[ind]],force=matCovLVPos)
+            semFit3Pos &lt;- lavaan(
+                scrUpdate3,
+                data= data.frame(dataBiodivNorm,dataCovNorm)
+            )
+        }else{
+            semFit3Pos &lt;- semFit3
+        }
+        save(semFit3Pos,file=paste(&quot;dat/Etape2/semFit3Pos_&quot;,ind,&quot;.Rdata&quot;,sep=&quot;&quot;))
+    })</code></pre>
+<p>Pour chacun de ces sous-modèles, on peut évaluer l’effet de la suppression de la relation correspontante via le rapport de vraisemblance avec le MES d’origine :</p>
+<pre class="r"><code>    vecDeltaLL3 &lt;- sapply(1:length(lisLisReg3),function(ind){
+        load(paste(&quot;dat/Etape2/semFit3Pos_&quot;,ind,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        vFit3Pos &lt;- lavInspect(semFit3Pos,&quot;fit&quot;)
+        DLL3Pos &lt;- vFit3Pos[match(&quot;chisq&quot;,names(vFit))]
+        return(DLL3Pos-mDLL_1_compl)
+    })
+    lab &lt;- unlist(lapply(lisReg3,function(reg){
+        vecMemb &lt;- unlist(strsplit(reg,split=&quot;~&quot;,fixed=TRUE))
+        fin &lt;- unlist(strsplit(vecMemb[1],split=&quot; &quot;,fixed=TRUE))
+        vecDeb &lt;- unlist(strsplit(vecMemb[2],split=&quot;+&quot;,fixed=TRUE))
+        vecDeb &lt;- sapply(vecDeb,function(deb){
+            v &lt;- unlist(strsplit(deb,split=&quot; &quot;,fixed=TRUE))
+            indRem &lt;- which(v==&quot;&quot;)
+            if(length(indRem)&gt;0) v &lt;- v[-indRem]
+            return(v)
+        })
+        return(paste(vecDeb,fin,sep=&quot; --&gt; &quot;))
+    }))
+    par(mar=c(12,6,4,1))
+    barplot(
+        2*vecDeltaLL3,
+        names.arg=lab,las=2,ylim=c(0,30),
+        ylab=expression(-2*Delta*L*L),cex.lab=1.5
+    )
+    abline(h=qchisq(0.95,1),lty=&quot;dashed&quot;,col=&quot;blue&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-91-1.png" width="1500" /></p>
+<p>La limite pointillée en bleu donne pour ordre de grandeur la limite au dessus de laquelle la relation est jugée avoir une contribution sur la base d’un test asymptotique du <span class="math inline">\(\chi^2\)</span>. Néanmoins ce test n’est pas valable sur des jeux de données de petite taille, comme c’est le cas ici. On propose donc d’adopter une démarche similaire à celle des sections précédentes, fondée sur un ré-échantillonnage paramétrique, pour tester une des relations ci-dessus : <em>DMH</em> <span class="math inline">\(\rightarrow\)</span> <em>BIODMH</em>.</p>
+<pre class="r"><code>    load(paste(&quot;dat/Etape2/semFit3Pos_&quot;,4,&quot;.Rdata&quot;,sep=&quot;&quot;))
+    semFit3_4Pos &lt;- semFit3Pos
+    semScript3_4 &lt;- SEMGen(lisBloc1,lisLisReg3[[4]])
+    load(&quot;dat/Etape2/semFit3Pos.Rdata&quot;)
+    B &lt;- 100 
+    matCovEst &lt;- lavInspect(semFit3_4Pos,&quot;sigma.hat&quot;)
+    nObs &lt;- lavInspect(semFit3_4Pos,&quot;nTotal&quot;)</code></pre>
+<pre class="r"><code>    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;nObs&quot;,&quot;matCovEst&quot;,&quot;semScript3&quot;,&quot;root&quot;,&quot;semScript3_4&quot;))
+    parLapply(cl,1:B,function(re){ 
+        source(&quot;code/functions_20200722.r&quot;)
+        bootSamp &lt;- rmnorm(n=nObs,varcov=matCovEst)
+        semFitBoot3Bis &lt;- lavaan(semScript3,data=bootSamp)
+        semFitBoot3_4 &lt;- lavaan(semScript3_4,data=bootSamp)
+        save(semFitBoot3Bis,file=paste(
+            &quot;dat/Etape2/Boot4/semFitBoot3Bis_&quot;,
+            re,
+            &quot;.Rdata&quot;,
+            sep=&quot;&quot;
+        ))
+        save(semFitBoot3_4,file=paste(
+            &quot;dat/Etape2/Boot4/semFitBoot3_4_&quot;,
+            re,
+            &quot;.Rdata&quot;,
+            sep=&quot;&quot;
+        ))
+        return(NULL)
+    }) 
+    stopCluster(cl)
+    cl &lt;- makeCluster(4)
+    clusterExport(cl,c(&quot;lisBloc1&quot;,&quot;lisReg3&quot;,&quot;root&quot;,&quot;lisLisReg3&quot;))
+    parLapply(cl,1:B,function(re){ 
+        source(&quot;functions_20200722.r&quot;)
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3Bis_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        if(!lavInspect(semFitBoot3Bis,&quot;post.check&quot;)){
+            matCovLV &lt;- lavInspect(semFitBoot3Bis,&quot;cov.lv&quot;)
+            indRem &lt;- match(
+                c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),
+                rownames(matCovLV)
+            )
+            matCovLV &lt;- matCovLV[-indRem,-indRem]
+            D &lt;- diag(eigen(matCovLV)$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5)
+            P &lt;- eigen(matCovLV)$vectors
+            matCovLVPos &lt;- P%*%DPos%*%t(P)
+            rownames(matCovLVPos) &lt;- rownames(matCovLV)
+            colnames(matCovLVPos) &lt;- colnames(matCovLV)
+            scrUpdateBoot3Bis &lt;- SEMGen(lisBloc1,lisReg3,force=matCovLVPos)
+            bootSamp &lt;- lavInspect(semFitBoot3Bis,&quot;data&quot;)
+            semFitBoot3BisPos &lt;- lavaan(scrUpdateBoot3Bis,data=bootSamp)
+        } else{
+            semFitBoot3BisPos &lt;- semFitBoot3Bis
+        }
+        save(semFitBoot3BisPos,file=paste(
+            &quot;dat/Etape2/Boot4/semFitBoot3BisPos_&quot;,
+            re,
+            &quot;.Rdata&quot;,
+            sep=&quot;&quot;
+        ))
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3_4_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        if(!lavInspect(semFitBoot3_4,&quot;post.check&quot;)){
+            matCovLV &lt;- lavInspect(semFitBoot3_4,&quot;cov.lv&quot;)
+            indRem &lt;- match(
+                c(&quot;BIOFOR&quot;,&quot;BIODMH&quot;,&quot;FLORANFOR&quot;,&quot;CARAB&quot;),
+                rownames(matCovLV)
+            )
+            matCovLV &lt;- matCovLV[-indRem,-indRem]
+            D &lt;- diag(eigen(matCovLV)$values)
+            indNeg &lt;- which(diag(D)&lt;0)
+            DPos &lt;- D
+            diag(DPos)[indNeg] &lt;- 10^(-5) 
+            P &lt;- eigen(matCovLV)$vectors
+            matCovLVPos &lt;- P%*%DPos%*%t(P)
+            rownames(matCovLVPos) &lt;- rownames(matCovLV)
+            colnames(matCovLVPos) &lt;- colnames(matCovLV)
+            scrUpdateBoot3_4 &lt;- SEMGen(
+                lisBloc1,
+                lisLisReg3[[4]],
+                force=matCovLVPos)
+            bootSamp &lt;- lavInspect(semFitBoot3_4,&quot;data&quot;)
+            semFitBoot3_4Pos &lt;- lavaan(scrUpdateBoot3_4,data=bootSamp)
+        } else{
+            semFitBoot3_4Pos &lt;- semFitBoot3_4
+        }
+        save(semFitBoot3_4Pos,file=paste(
+            &quot;dat/Etape2/Boot4/semFitBoot3_4Pos_&quot;,
+            re,
+            &quot;.Rdata&quot;,
+            sep=&quot;&quot;
+        ))
+        return(NULL)
+    }) 
+    stopCluster(cl)</code></pre>
+<pre class="r"><code>    indConv3BisPos &lt;- which(sapply(1:B,function(re){
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3BisPos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3_4Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        conv3BisPos &lt;- lavInspect(semFitBoot3BisPos,&quot;converged&quot;)
+        conv3_4Pos &lt;- lavInspect(semFitBoot3_4Pos,&quot;converged&quot;)
+        return(conv3BisPos * conv3_4Pos ==1)
+    }))
+    vecBootChisq3BisPos &lt;- sapply(indConv3BisPos,function(re){
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3BisPos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        load(paste(&quot;dat/Etape2/Boot4/semFitBoot3_4Pos_&quot;,re,&quot;.Rdata&quot;,sep=&quot;&quot;))
+        vFBoot3BisPos &lt;- fitmeasures(semFitBoot3BisPos)
+        vFBoot3_4Pos &lt;- fitmeasures(semFitBoot3_4Pos)
+        LLBoot3BisPos &lt;- vFBoot3BisPos[match(&quot;logl&quot;,names(vFBoot3BisPos))]
+        LLBoot3_4Pos &lt;- vFBoot3_4Pos[match(&quot;logl&quot;,names(vFBoot3_4Pos))]
+        return(2*(LLBoot3BisPos-LLBoot3_4Pos))
+    })
+    vF3Pos &lt;- fitmeasures(semFit3Pos)
+    LL3Pos &lt;- vF3Pos[match(&quot;logl&quot;,names(vF3Pos))]
+    vF3_4Pos &lt;- fitmeasures(semFit3_4Pos)
+    LL3_4Pos &lt;- vF3_4Pos[match(&quot;logl&quot;,names(vF3_4Pos))]
+    chiSq_3_4Pos_3Pos &lt;- 2*(LL3Pos-LL3_4Pos)
+    hist(
+        vecBootChisq3BisPos,
+        xlab=expression((-2*Delta[LL]^(-rel))-(-2*Delta[LL])),
+        main=&quot;&quot;
+    )
+    abline(v=chiSq_3_4Pos_3Pos,col=&quot;red&quot;)</code></pre>
+<p><img src="sancristobal_files/figure-html/unnamed-chunk-95-1.png" width="1500" /></p>
+<p>On peut alors déterminer le quantile du rapport de vraisemblance observé sur les vraies observations dans la distributions nulle obtenue par ré-échantillonnage :</p>
+<pre class="r"><code>    qHat &lt;- mean(chiSq_3_4Pos_3Pos&gt;vecBootChisq3BisPos)
+    qHat</code></pre>
+<pre><code>## [1] 0.576087</code></pre>
+<p>et on peut déterminer un seuil théorique au dessus duquel on peut décréter que la relation supprimée contribuait à augmenter significativement la vraisemblance du MES.</p>
+<pre class="r"><code>    thres &lt;- 1/length(indConv3BisPos)*qbinom(0.95,length(indConv3BisPos),0.95)
+    thres</code></pre>
+<pre><code>## [1] 0.9891304</code></pre>
+<p>On remarquera que le seuil est ici calculé légèrement différemment comparé aux tests de validation effectués plus haut, de manière à être conservatif sur l’hypothèse nulle (la relation n’est pas significative) et non sur l’hypothèse alternative (la relation est significative). On conlut ici que <em>DMH</em> <span class="math inline">\(\rightarrow\)</span> <em>BIODMH</em> n’a pas de contribution significative au MES retenu.</p>
+</div>
 </div>
 
 
