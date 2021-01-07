@@ -390,8 +390,8 @@ div.tocify {
 </div>
 
 
-<div id="préambule" class="section level2">
-<h2>Préambule</h2>
+<div id="préambule" class="section level1">
+<h1>Préambule</h1>
 <p>Ce tutoriel illustre l’utilisation du package <strong>sbm</strong> <span class="citation">(Chiquet, Donnet, and Barbillon 2020)</span> pour rechercher des structures dans un réseau écologique. Le package s’installe depuis le CRAN ou depuis <a href="https://github.com/GrossSBM/sbm">github</a> pour une version en développement. Les packages <strong>ggplot2</strong> <span class="citation">(Wickham 2016)</span>, <strong>econetwork</strong> <span class="citation">(Dray et al. 2020)</span> et <strong>bipartite</strong> <span class="citation">(Dormann, Gruber, and Fruend 2008)</span> sont également requis pour les représentations graphiques ou des calculs de mesures.</p>
 <pre class="r"><code>suppressMessages(library(sbm))
 suppressMessages(library(knitr))
@@ -399,10 +399,10 @@ suppressMessages(library(ggplot2))
 suppressMessages(library(econetwork))
 suppressMessages(library(bipartite))</code></pre>
 </div>
-<div id="réseau-simple-ou-unipartite-exemple-dun-réseau-trophique" class="section level2">
-<h2>Réseau simple ou unipartite : exemple d’un réseau trophique</h2>
-<div id="les-données" class="section level3">
-<h3>Les données</h3>
+<div id="réseau-simple-ou-unipartite-exemple-dun-réseau-trophique" class="section level1">
+<h1>Réseau simple ou unipartite : exemple d’un réseau trophique</h1>
+<div id="les-données" class="section level2">
+<h2>Les données</h2>
 <p>Nous considérons un réseau trophique entre espèces de la zone intertidale de la côte pacifique, accompagné d’informations sur les traits, tel que publié dans l’article de <span class="citation">Kéfi et al. (2016)</span>.</p>
 <p>Le jeu de données, disponible publiquement sur <a href="https://datadryad.org/stash/dataset/doi:10.5061/dryad.b4vg0">Dryad</a>, consiste en une matrice d’adjacence (présence/absence) pour <span class="math inline">\(106\)</span> espèces trouvées comme co-occurrant dans des études de structure de communauté sur différents sites rocheux intertidaux avec le même temps d’exposition aux vagues le long de 700 km de côtes du Chili central.</p>
 <p>Les données ont été reformattées sous forme de matrice dans le fichier <a href="dat/Chilean.rda">Chilean.rda</a> et peuvent se charger à l’aide de la fonction <code>load</code>. La matrice d’adjacence se visualise grâce à la fonction <code>sbm::plotMyMatrix</code>.</p>
@@ -410,8 +410,8 @@ suppressMessages(library(bipartite))</code></pre>
 plotMyMatrix(adjMat, dimLabels = list(row = &quot;species&quot;, col = &quot;species&quot;))</code></pre>
 <p><img src="aubert_files/figure-html/data_foodweb-1.png" width="672" /></p>
 </div>
-<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques" class="section level3">
-<h3>Analyse statistique avec des modèles à blocs stochastiques</h3>
+<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques" class="section level2">
+<h2>Analyse statistique avec des modèles à blocs stochastiques</h2>
 <p>La fonction <code>sbm::estimateSimpleSBM</code> effectue l’inférence variationnelle d’un modèle à blocs stochastiques à partir d’une matrice décrivant un réseau. La matrice <code>adjMat</code> étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (<code>model = "bernoulli"</code>) pour la distribution des arêtes. Il s’agit de l’option par défaut, d’autres modèles de distribution tels que Poisson ou gaussien sont disponibles.</p>
 <pre class="r"><code>estimOptions = list(plot = FALSE)
 my_model &lt;- estimateSimpleSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;species&quot;, 
@@ -450,18 +450,18 @@ ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xinte
 #                        edge.arrow.width = 0.7, 
 #                        edge.threshold = 0.05))</code></pre>
 </div>
-<div id="réseau-bipartite-exemple-dun-réseau-dinteractions-entre-plantes-et-insectes-pollinisateurs" class="section level3">
-<h3>Réseau bipartite : exemple d’un réseau d’interactions entre plantes et insectes pollinisateurs</h3>
+<div id="réseau-bipartite-exemple-dun-réseau-dinteractions-entre-plantes-et-insectes-pollinisateurs" class="section level2">
+<h2>Réseau bipartite : exemple d’un réseau d’interactions entre plantes et insectes pollinisateurs</h2>
 </div>
-<div id="les-données-1" class="section level3">
-<h3>Les données</h3>
+<div id="les-données-1" class="section level2">
+<h2>Les données</h2>
 <p>Nous étudions ici le réseau d’interactions entre plantes et insectes pollinisateurs observées à Ténérife en 2012 <span class="citation">Carstensen et al. (2018)</span>. Les données ont été reformattées sous forme de matrice dans le fichier <a href="dat/PlantPoll.rda">PlantPoll.rda</a> et peuvent se charger à l’aide de la fonction <code>load</code>. La matrice de bi-adjacence se visualise grâce à la fonction <code>sbm::plotMyMatrix</code>.</p>
 <pre class="r"><code>load(&quot;dat/PlantPoll.rda&quot;)
 plotMyMatrix(adjMat, dimLabels = list(row = &quot;Plant&quot;, col = &quot;Poll&quot;))</code></pre>
 <p><img src="aubert_files/figure-html/data_plantpoll-1.png" width="672" /></p>
 </div>
-<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques-bipartites" class="section level3">
-<h3>Analyse statistique avec des modèles à blocs stochastiques bipartites</h3>
+<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques-bipartites" class="section level2">
+<h2>Analyse statistique avec des modèles à blocs stochastiques bipartites</h2>
 <p>La fonction <code>sbm::estimateBipartiteSBM</code> effectue l’inférence variationnelle d’un modèle à blocs stochastiques bipartite à partir d’une matrice décrivant un réseau. La matrice <code>adjMat</code> étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (<code>model = "bernoulli"</code>) pour la distribution des arêtes. Il s’agit de l’option par défaut, d’autres modèles de distribution tels que Poisson ou gaussien sont disponibles.</p>
 <pre class="r"><code>my_model &lt;- estimateBipartiteSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;Plant&quot;, 
     col = &quot;Poll&quot;), estimOptions = list(verbosity = 0, plot = FALSE))</code></pre>

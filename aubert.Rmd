@@ -11,7 +11,8 @@ bibliography: bib/biblioAubert.bib
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-## Préambule
+
+# Préambule
 
 Ce tutoriel illustre l'utilisation du package **sbm** [@sbm] pour rechercher des structures dans un réseau écologique. Le package s'installe depuis le CRAN ou depuis [github](https://github.com/GrossSBM/sbm) pour une version en développement. Les packages **ggplot2** [@ggplot2], **econetwork** [@econetwork] et **bipartite** [@bipartite] sont également requis pour les représentations graphiques ou des calculs de mesures.
 
@@ -24,9 +25,9 @@ suppressMessages(library(econetwork))
 suppressMessages(library(bipartite))
 ```
 
-## Réseau simple ou unipartite : exemple d'un réseau trophique
+# Réseau simple ou unipartite : exemple d'un réseau trophique
 
-### Les données 
+## Les données 
 
 Nous considérons un réseau trophique entre espèces de la zone intertidale de la côte pacifique, accompagné d'informations sur les traits, tel que publié dans l'article de @KefiMiele2016.
 
@@ -40,7 +41,7 @@ load("dat/Chilean.rda")
 plotMyMatrix(adjMat, dimLabels = list(row = "species", col = "species"))
 ```
 
-### Analyse statistique avec des modèles à blocs stochastiques
+## Analyse statistique avec des modèles à blocs stochastiques
 
 La fonction `sbm::estimateSimpleSBM` effectue l'inférence variationnelle d'un modèle à blocs stochastiques à partir d'une matrice décrivant un réseau. La matrice `adjMat` étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (`model = "bernoulli"`) pour la distribution des arêtes. Il s'agit de l'option par défaut, d'autres modèles de distribution tels que Poisson ou gaussien sont disponibles.  
 
@@ -86,9 +87,9 @@ On peut maintenant fournir une représentation mésoscopique du réseau.
 #                        edge.threshold = 0.05))
 ```
 
-### Réseau bipartite : exemple d'un réseau d'interactions entre plantes et insectes pollinisateurs 
+## Réseau bipartite : exemple d'un réseau d'interactions entre plantes et insectes pollinisateurs 
 
-### Les données 
+## Les données 
 Nous étudions ici le réseau d'interactions entre plantes et insectes pollinisateurs observées à Ténérife en 2012 @car18.
 Les données ont été reformattées sous forme de matrice dans le fichier [PlantPoll.rda](dat/PlantPoll.rda)  et peuvent se charger à l'aide de la fonction `load`. La matrice de bi-adjacence se visualise grâce à la fonction `sbm::plotMyMatrix`.
 
@@ -97,7 +98,7 @@ load("dat/PlantPoll.rda")
 plotMyMatrix(adjMat, dimLabels = list(row = "Plant", col = "Poll"))
 ```
 
-### Analyse statistique avec des modèles à blocs stochastiques bipartites
+## Analyse statistique avec des modèles à blocs stochastiques bipartites
 
 La fonction `sbm::estimateBipartiteSBM` effectue l'inférence variationnelle d'un modèle à blocs stochastiques bipartite à partir d'une matrice décrivant un réseau. La matrice `adjMat` étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (`model = "bernoulli"`) pour la distribution des arêtes. Il s'agit de l'option par défaut, d'autres modèles de distribution tels que Poisson ou gaussien sont disponibles.
 
