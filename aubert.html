@@ -390,20 +390,174 @@ div.tocify {
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<div id="préambule" class="section level2">
+<h2>Préambule</h2>
+<p>Ce tutoriel illustre l’utilisation du package <strong>sbm</strong> <span class="citation">(Chiquet, Donnet, and Barbillon 2020)</span> pour rechercher des structures dans un réseau écologique. Le package s’installe depuis le CRAN ou depuis <a href="https://github.com/GrossSBM/sbm">github</a> pour une version en développement. Les packages <strong>ggplot2</strong> <span class="citation">(Wickham 2016)</span>, <strong>econetwork</strong> <span class="citation">(Dray et al. 2020)</span> et <strong>bipartite</strong> <span class="citation">(Dormann, Gruber, and Fruend 2008)</span> sont également requis pour les représentations graphiques ou des calculs de mesures.</p>
+<pre class="r"><code>suppressMessages(library(sbm))
+suppressMessages(library(knitr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(econetwork))
+suppressMessages(library(bipartite))</code></pre>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="réseau-simple-ou-unipartite-exemple-dun-réseau-trophique" class="section level2">
+<h2>Réseau simple ou unipartite : exemple d’un réseau trophique</h2>
+<div id="les-données" class="section level3">
+<h3>Les données</h3>
+<p>Nous considérons un réseau trophique entre espèces de la zone intertidale de la côte pacifique, accompagné d’informations sur les traits, tel que publié dans l’article de <span class="citation">Kéfi et al. (2016)</span>.</p>
+<p>Le jeu de données, disponible publiquement sur <a href="https://datadryad.org/stash/dataset/doi:10.5061/dryad.b4vg0">Dryad</a>, consiste en une matrice d’adjacence (présence/absence) pour <span class="math inline">\(106\)</span> espèces trouvées comme co-occurrant dans des études de structure de communauté sur différents sites rocheux intertidaux avec le même temps d’exposition aux vagues le long de 700 km de côtes du Chili central.</p>
+<p>Les données ont été reformattées sous forme de matrice dans le fichier <a href="dat/Chilean.rda">Chilean.rda</a> et peuvent se charger à l’aide de la fonction <code>load</code>. La matrice d’adjacence se visualise grâce à la fonction <code>sbm::plotMyMatrix</code>.</p>
+<pre class="r"><code>load(&quot;dat/Chilean.rda&quot;)
+plotMyMatrix(adjMat, dimLabels = list(row = &quot;species&quot;, col = &quot;species&quot;))</code></pre>
+<p><img src="aubert_files/figure-html/data_foodweb-1.png" width="672" /></p>
+</div>
+<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques" class="section level3">
+<h3>Analyse statistique avec des modèles à blocs stochastiques</h3>
+<p>La fonction <code>sbm::estimateSimpleSBM</code> effectue l’inférence variationnelle d’un modèle à blocs stochastiques à partir d’une matrice décrivant un réseau. La matrice <code>adjMat</code> étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (<code>model = "bernoulli"</code>) pour la distribution des arêtes. Il s’agit de l’option par défaut, d’autres modèles de distribution tels que Poisson ou gaussien sont disponibles.</p>
+<pre class="r"><code>estimOptions = list(plot = FALSE)
+my_model &lt;- estimateSimpleSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;species&quot;, 
+    col = &quot;species&quot;), estimOptions = list(verbosity = 0, plot = FALSE))</code></pre>
+<p>Les modèles estimés au cours de la procédure sont disponibles dans <code>my_model$storedModels</code>. Le meilleur modèle peut être choisi à l’aide d’un critère ICL. Visualisons les modèles estimés :</p>
+<pre class="r"><code>storedModels &lt;- my_model$storedModels
+print(storedModels)</code></pre>
+<pre><code>##    indexModel nbParams nbBlocks       ICL    loglik
+## 1           1        1        1 -4136.897 -4132.238
+## 2           2        5        2 -2743.488 -2722.521
+## 3           3       11        3 -2239.258 -2192.666
+## 4           4       19        4 -2040.274 -1958.740
+## 5           5       29        5 -1877.705 -1751.910
+## 6           6       41        6 -1784.991 -1605.620
+## 7           7       55        7 -1736.472 -1494.206
+## 8           8       71        8 -1758.204 -1443.725
+## 9           9       89        9 -1786.712 -1390.704
+## 10         10      109       10 -1847.561 -1360.705
+## 11         11      131       11 -1919.232 -1332.212</code></pre>
+<pre class="r"><code>bestModel &lt;- storedModels$nbBlocks[which.max(storedModels$ICL)]
+ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xintercept = bestModel, 
+    col = &quot;orange&quot;, linetype = &quot;dashed&quot;) + geom_hline(yintercept = storedModels$ICL[bestModel], 
+    col = &quot;orange&quot;, linetype = &quot;dashed&quot;)</code></pre>
+<p><img src="aubert_files/figure-html/compar%20models_foodweb-1.png" width="672" /></p>
+<p>Le meilleur modèle, maximisant le critère ICL, est celui à 7 groupes.</p>
+<p>On peut maintenant représenter la matrice réordonnée selon ces groupes,</p>
+<pre class="r"><code>plot(my_model)</code></pre>
+<p><img src="aubert_files/figure-html/plot%20matrix_foodweb%20reordered-1.png" width="672" /></p>
+<p>ou en espérance</p>
+<pre class="r"><code>plot(my_model, type = &quot;expected&quot;)</code></pre>
+<p><img src="aubert_files/figure-html/plot%20matrix_foodweb%20expected-1.png" width="672" /></p>
+<p>On peut maintenant fournir une représentation mésoscopique du réseau.</p>
+<pre class="r"><code>#plot(my_model, type = &quot;meso&quot;, 
+#     plotOptions = list(vertex.size = 2, 
+#                        edge.width = 0.7, 
+#                        edge.arrow.width = 0.7, 
+#                        edge.threshold = 0.05))</code></pre>
+</div>
+<div id="réseau-bipartite-exemple-dun-réseau-dinteractions-entre-plantes-et-insectes-pollinisateurs" class="section level3">
+<h3>Réseau bipartite : exemple d’un réseau d’interactions entre plantes et insectes pollinisateurs</h3>
+</div>
+<div id="les-données-1" class="section level3">
+<h3>Les données</h3>
+<p>Nous étudions ici le réseau d’interactions entre plantes et insectes pollinisateurs observées à Ténérife en 2012 <span class="citation">Carstensen et al. (2018)</span>. Les données ont été reformattées sous forme de matrice dans le fichier <a href="dat/PlantPoll.rda">PlantPoll.rda</a> et peuvent se charger à l’aide de la fonction <code>load</code>. La matrice de bi-adjacence se visualise grâce à la fonction <code>sbm::plotMyMatrix</code>.</p>
+<pre class="r"><code>load(&quot;dat/PlantPoll.rda&quot;)
+plotMyMatrix(adjMat, dimLabels = list(row = &quot;Plant&quot;, col = &quot;Poll&quot;))</code></pre>
+<p><img src="aubert_files/figure-html/data_plantpoll-1.png" width="672" /></p>
+</div>
+<div id="analyse-statistique-avec-des-modèles-à-blocs-stochastiques-bipartites" class="section level3">
+<h3>Analyse statistique avec des modèles à blocs stochastiques bipartites</h3>
+<p>La fonction <code>sbm::estimateBipartiteSBM</code> effectue l’inférence variationnelle d’un modèle à blocs stochastiques bipartite à partir d’une matrice décrivant un réseau. La matrice <code>adjMat</code> étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (<code>model = "bernoulli"</code>) pour la distribution des arêtes. Il s’agit de l’option par défaut, d’autres modèles de distribution tels que Poisson ou gaussien sont disponibles.</p>
+<pre class="r"><code>my_model &lt;- estimateBipartiteSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;Plant&quot;, 
+    col = &quot;Poll&quot;), estimOptions = list(verbosity = 0, plot = FALSE))</code></pre>
+<pre class="r"><code># Pour sauvegarder les modèles estimés
+# save(my_model, file = &quot;result/PlantPollRes.rda&quot;)
+# Pour les recharger ultérieurement
+# load(file = &quot;result/PlantPollRes.rda&quot;)</code></pre>
+<p>Les modèles estimés au cours de la procédure sont disponibles dans <code>my_model$storedModels</code>. Le meilleur modèle peut être choisi à l’aide d’un critère ICL. Visualisons les modèles estimés :</p>
+<pre class="r"><code>storedModels &lt;- my_model$storedModels
+print(storedModels)</code></pre>
+<pre><code>##   indexModel nbParams rowBlocks colBlocks nbBlocks       ICL    loglik
+## 2          2        1         1         1        2 -419.2221 -415.7261
+## 3          3        3         1         2        3 -394.7397 -385.6379
+## 4          4        6         2         2        4 -373.4311 -355.9509
+## 5          5        9         3         2        5 -379.8765 -354.0179
+## 6          6       12         4         2        6 -389.2616 -355.0246</code></pre>
+<pre class="r"><code>bestModel &lt;- storedModels$nbBlocks[which.max(storedModels$ICL)]
+ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xintercept = bestModel, 
+    col = &quot;orange&quot;, linetype = &quot;dashed&quot;) + geom_hline(yintercept = storedModels$ICL[bestModel], 
+    col = &quot;orange&quot;, linetype = &quot;dashed&quot;)</code></pre>
+<p><img src="aubert_files/figure-html/compar%20models_plantpoll-1.png" width="672" /></p>
+<p>Le meilleur modèle, selon le critère ICL, est celui à 4 blocs (2 en lignes et 2 en colonnes).</p>
+<p>On peut maintenant représenter la matrice réordonnée selon ces groupes</p>
+<pre class="r"><code>plot(my_model)</code></pre>
+<p><img src="aubert_files/figure-html/plot%20matrix_plantpoll%20reordered-1.png" width="672" /> ou en espérance</p>
+<pre class="r"><code>plot(my_model, type = &quot;expected&quot;)</code></pre>
+<p><img src="aubert_files/figure-html/plot%20matrix_plantpoll%20expected-1.png" width="672" /></p>
+<p>On peut maintenant fournir une représentation réorganisée du réseau. La fonction <code>econetwork::cpness</code> calcule une mesure de “core-peripheriness” pour un réseau bipartite. La fonction <code>bipartite::plotweb</code> permet de visualiser une matrice d’interactions observées entre des espèces d’un niveau trophique supérieur (en colonnes), ici les plantes et des espèces d’un niveau trophique inférieur (en lignes), ici les pollinisateurs.</p>
+<pre class="r"><code>cp &lt;- cpness(adjMat, plot = FALSE)
+plotweb(adjMat[order(cp$rowmembership), order(cp$colmembership)], method = &quot;normal&quot;, 
+    col.high = c(&quot;Darkred&quot;, &quot;Orange&quot;)[sort(cp$colmembership)], col.low = c(&quot;Darkgreen&quot;, 
+        &quot;Lightgreen&quot;)[sort(cp$rowmembership)], text.rot = 90, col.interaction = &quot;gray&quot;)</code></pre>
+<p><img src="aubert_files/figure-html/plot%20reorganized_plantpoll%20%20models-1.png" width="672" /> ou bien une version mésoscopique du réseau.</p>
+<pre class="r"><code>#plot(my_model, type = &quot;meso&quot;, plotOptions = list(vertex.size = c(6, 2), 
+#    vertex.label.name = c(&quot;Plant.&quot;, &quot;Poll.&quot;)))</code></pre>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 4.0.2 (2020-06-22)
+## Platform: x86_64-apple-darwin17.0 (64-bit)
+## Running under: macOS Catalina 10.15.7
+## 
+## Matrix products: default
+## BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] fr_FR.UTF-8/fr_FR.UTF-8/fr_FR.UTF-8/C/fr_FR.UTF-8/fr_FR.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] bipartite_2.15       sna_2.6              network_1.16.1      
+##  [4] statnet.common_4.4.1 vegan_2.5-7          lattice_0.20-41     
+##  [7] permute_0.9-5        econetwork_0.4.1     ggplot2_3.3.3       
+## [10] knitr_1.30           sbm_0.3.0           
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.5         digest_0.6.27      rle_0.9.2          R6_2.5.0          
+##  [5] plyr_1.8.6         evaluate_0.14      coda_0.19-4        spam_2.5-1        
+##  [9] pillar_1.4.7       rlang_0.4.10       Matrix_1.2-18      rmarkdown_2.5     
+## [13] grr_0.9.5          labeling_0.4.2     splines_4.0.2      rdiversity_2.0    
+## [17] stringr_1.4.0      igraph_1.2.6       munsell_0.5.0      compiler_4.0.2    
+## [21] xfun_0.19          pkgconfig_2.0.3    mgcv_1.8-31        htmltools_0.5.0   
+## [25] tidyselect_1.1.0   tibble_3.0.4       reshape_0.8.8      aricode_1.0.0     
+## [29] crayon_1.3.4       dplyr_1.0.2        withr_2.3.0        MASS_7.3-51.6     
+## [33] Matrix.utils_0.9.8 grid_4.0.2         nlme_3.1-148       gtable_0.3.0      
+## [37] lifecycle_0.2.0    magrittr_2.0.1     binaryLogic_0.3.9  scales_1.1.1      
+## [41] stringi_1.5.3      farver_2.0.3       reshape2_1.4.4     GREMLINS_0.2.0    
+## [45] ellipsis_0.3.1     generics_0.1.0     vctrs_0.3.6        tools_4.0.2       
+## [49] glue_1.4.2         purrr_0.3.4        maps_3.3.0         blockmodels_1.1.4 
+## [53] fields_11.6        parallel_4.0.2     yaml_2.2.1         colorspace_2.0-0  
+## [57] cluster_2.1.0      dotCall64_1.0-0</code></pre>
+</div>
+</div>
+<div id="références" class="section level1 unnumbered">
+<h1 class="unnumbered">Références</h1>
+<div id="refs" class="references hanging-indent">
+<div id="ref-car18">
+<p>Carstensen, Daniel W, Kristian Trøjelsgaard, Jeff Ollerton, and Leonor Patricia C Morellato. 2018. “Local and Regional Specialization in Plant–Pollinator Networks.” <em>Oikos</em> 127 (4): 531–37.</p>
+</div>
+<div id="ref-sbm">
+<p>Chiquet, Julien, Sophie Donnet, and Pierre Barbillon. 2020. <em>Sbm: Stochastic Blockmodels</em>. <a href="https://CRAN.R-project.org/package=sbm">https://CRAN.R-project.org/package=sbm</a>.</p>
+</div>
+<div id="ref-bipartite">
+<p>Dormann, C. F., B. Gruber, and J. Fruend. 2008. “Introducing the Bipartite Package: Analysing Ecological Networks.” <em>R News</em> 8 (2): 8–11.</p>
+</div>
+<div id="ref-econetwork">
+<p>Dray, Stephane, Catherine Matias, Vincent Miele, Marc Ohlmann, and Wilfried Thuiller. 2020. <em>Econetwork: Analyzing Ecological Networks</em>. <a href="https://CRAN.R-project.org/package=econetwork">https://CRAN.R-project.org/package=econetwork</a>.</p>
+</div>
+<div id="ref-KefiMiele2016">
+<p>Kéfi, Sonia, Vincent Miele, Evie A. Wieters, Sergio A. Navarrete, and Eric L. Berlow. 2016. “How Structured Is the Entangled Bank? The Surprisingly Simple Organization of Multiplex Ecological Networks Leads to Increased Persistence and Resilience.” <em>PLOS Biology</em> 14 (8): 1–21. <a href="https://doi.org/10.1371/journal.pbio.1002527">https://doi.org/10.1371/journal.pbio.1002527</a>.</p>
+</div>
+<div id="ref-ggplot2">
+<p>Wickham, Hadley. 2016. <em>Ggplot2: Elegant Graphics for Data Analysis</em>. Springer-Verlag New York. <a href="https://ggplot2.tidyverse.org">https://ggplot2.tidyverse.org</a>.</p>
+</div>
+</div>
 </div>
 
 

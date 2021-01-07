@@ -5,22 +5,152 @@ output:
     html_document:
         toc: TRUE
         toc_float: TRUE
+bibliography: bib/biblioAubert.bib
 ---
 
-Du code R qui va bien.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Préambule
+
+Ce tutoriel illustre l'utilisation du package **sbm** [@sbm] pour rechercher des structures dans un réseau écologique. Le package s'installe depuis le CRAN ou depuis [github](https://github.com/GrossSBM/sbm) pour une version en développement. Les packages **ggplot2** [@ggplot2], **econetwork** [@econetwork] et **bipartite** [@bipartite] sont également requis pour les représentations graphiques ou des calculs de mesures.
 
 
-## Trajectoire
+```{r packages}
+suppressMessages(library(sbm))
+suppressMessages(library(knitr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(econetwork))
+suppressMessages(library(bipartite))
+```
 
-Les ingrédients
+## Réseau simple ou unipartite : exemple d'un réseau trophique
 
-1. Huile d'olive
-2. Citron
-3. Sel
-4. Poivre
+### Les données 
+
+Nous considérons un réseau trophique entre espèces de la zone intertidale de la côte pacifique, accompagné d'informations sur les traits, tel que publié dans l'article de @KefiMiele2016.
+
+Le jeu de données, disponible publiquement sur  [Dryad](https://datadryad.org/stash/dataset/doi:10.5061/dryad.b4vg0), consiste en une matrice d'adjacence (présence/absence) pour $106$ espèces trouvées comme co-occurrant dans des études de structure de communauté sur différents sites rocheux intertidaux avec le même temps d'exposition aux vagues le long de 700 km de côtes du Chili central.
+
+Les données ont été reformattées sous forme de matrice dans le fichier [Chilean.rda](dat/Chilean.rda) et peuvent se charger à l'aide de la fonction `load`. La matrice d'adjacence se visualise grâce à la fonction `sbm::plotMyMatrix`.
 
 
-## Mouvements
+```{r data_foodweb}
+load("dat/Chilean.rda")
+plotMyMatrix(adjMat, dimLabels = list(row = "species", col = "species"))
+```
 
-Au minimum il faut :
+### Analyse statistique avec des modèles à blocs stochastiques
 
+La fonction `sbm::estimateSimpleSBM` effectue l'inférence variationnelle d'un modèle à blocs stochastiques à partir d'une matrice décrivant un réseau. La matrice `adjMat` étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (`model = "bernoulli"`) pour la distribution des arêtes. Il s'agit de l'option par défaut, d'autres modèles de distribution tels que Poisson ou gaussien sont disponibles.  
+
+```{r sbm_foodweb, echo=TRUE, eval = TRUE}
+estimOptions = list(plot = FALSE)
+my_model <- estimateSimpleSBM(adjMat, model = "bernoulli", dimLabels = list(row = "species", 
+    col = "species"), estimOptions = list(verbosity = 0, plot = FALSE))
+```
+
+Les modèles estimés  au cours de la procédure sont disponibles dans `my_model$storedModels`. Le meilleur modèle peut être choisi à l'aide d'un critère ICL. Visualisons les modèles estimés :
+
+```{r compar models_foodweb}
+storedModels <- my_model$storedModels
+print(storedModels)
+bestModel <- storedModels$nbBlocks[which.max(storedModels$ICL)]
+ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xintercept = bestModel, 
+    col = "orange", linetype = "dashed") + geom_hline(yintercept = storedModels$ICL[bestModel], 
+    col = "orange", linetype = "dashed")
+```
+
+Le meilleur modèle, maximisant le critère ICL, est celui à 7 groupes. 
+
+On peut maintenant représenter la matrice réordonnée selon ces groupes, 
+
+```{r plot matrix_foodweb reordered}
+plot(my_model)
+```
+
+ou en espérance
+
+```{r plot matrix_foodweb expected}
+plot(my_model, type = "expected")
+```
+
+On peut maintenant fournir une représentation mésoscopique du réseau. 
+
+ 
+```{r plot meso_foodweb expected}
+#plot(my_model, type = "meso", 
+#     plotOptions = list(vertex.size = 2, 
+#                        edge.width = 0.7, 
+#                        edge.arrow.width = 0.7, 
+#                        edge.threshold = 0.05))
+```
+
+### Réseau bipartite : exemple d'un réseau d'interactions entre plantes et insectes pollinisateurs 
+
+### Les données 
+Nous étudions ici le réseau d'interactions entre plantes et insectes pollinisateurs observées à Ténérife en 2012 @car18.
+Les données ont été reformattées sous forme de matrice dans le fichier [PlantPoll.rda](dat/PlantPoll.rda)  et peuvent se charger à l'aide de la fonction `load`. La matrice de bi-adjacence se visualise grâce à la fonction `sbm::plotMyMatrix`.
+
+```{r data_plantpoll}
+load("dat/PlantPoll.rda")
+plotMyMatrix(adjMat, dimLabels = list(row = "Plant", col = "Poll"))
+```
+
+### Analyse statistique avec des modèles à blocs stochastiques bipartites
+
+La fonction `sbm::estimateBipartiteSBM` effectue l'inférence variationnelle d'un modèle à blocs stochastiques bipartite à partir d'une matrice décrivant un réseau. La matrice `adjMat` étant ici une matrice binaire (présence/absence), nous choisissons un modèle de Bernoulli (`model = "bernoulli"`) pour la distribution des arêtes. Il s'agit de l'option par défaut, d'autres modèles de distribution tels que Poisson ou gaussien sont disponibles.
+
+```{r sbm_plantpoll, echo=TRUE, eval = TRUE}
+my_model <- estimateBipartiteSBM(adjMat, model = "bernoulli", dimLabels = list(row = "Plant", 
+    col = "Poll"), estimOptions = list(verbosity = 0, plot = FALSE))
+# Pour sauvegarder les modèles estimés
+# save(my_model, file = "result/PlantPollRes.rda")
+# Pour les recharger ultérieurement
+# load(file = "result/PlantPollRes.rda")
+```
+
+Les modèles estimés  au cours de la procédure sont disponibles dans `my_model$storedModels`. Le meilleur modèle peut être choisi à l'aide d'un critère ICL. Visualisons les modèles estimés :
+
+```{r compar models_plantpoll}
+storedModels <- my_model$storedModels
+print(storedModels)
+bestModel <- storedModels$nbBlocks[which.max(storedModels$ICL)]
+ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xintercept = bestModel, 
+    col = "orange", linetype = "dashed") + geom_hline(yintercept = storedModels$ICL[bestModel], 
+    col = "orange", linetype = "dashed")
+```
+
+Le meilleur modèle, selon le critère ICL, est celui à 4 blocs (2 en lignes et 2 en colonnes). 
+
+On peut maintenant représenter la matrice réordonnée selon ces groupes
+```{r plot matrix_plantpoll reordered}
+plot(my_model)
+```
+ou en espérance
+```{r plot matrix_plantpoll expected}
+plot(my_model, type = "expected")
+``` 
+
+On peut maintenant fournir une représentation réorganisée du réseau. La fonction `econetwork::cpness` calcule une mesure de "core-peripheriness" pour un réseau bipartite. La fonction `bipartite::plotweb` permet de visualiser une matrice d'interactions observées entre des espèces d'un niveau trophique supérieur (en colonnes), ici les plantes et des espèces d'un niveau trophique inférieur (en lignes), ici les pollinisateurs.
+```{r plot reorganized_plantpoll  models}
+cp <- cpness(adjMat, plot = FALSE)
+plotweb(adjMat[order(cp$rowmembership), order(cp$colmembership)], method = "normal", 
+    col.high = c("Darkred", "Orange")[sort(cp$colmembership)], col.low = c("Darkgreen", 
+        "Lightgreen")[sort(cp$rowmembership)], text.rot = 90, col.interaction = "gray")
+``` 
+ou bien une version mésoscopique du réseau.
+ 
+```{r plot meso_plantpoll expected}
+#plot(my_model, type = "meso", plotOptions = list(vertex.size = c(6, 2), 
+#    vertex.label.name = c("Plant.", "Poll.")))
+```
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+
+# Références
+
+ 
