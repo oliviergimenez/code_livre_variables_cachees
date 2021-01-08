@@ -10,7 +10,6 @@ mathjax: "http://example.com/MathJax.js"
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo  = TRUE)
-knitr::opts_knit$set(root.dir = here::here())
 ```
 
 # Préparatifs 
@@ -470,7 +469,7 @@ for (formula in models_formula) {
 }
 ```
 
-```{r echo = FALSE}
+```{r echo = FALSE, cache = FALSE}
 PLNnet <- readRDS('dat/PLNnet.rds')
 ```
 
