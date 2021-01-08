@@ -5,22 +5,732 @@ output:
     html_document:
         toc: TRUE
         toc_float: TRUE
+mathjax: "http://example.com/MathJax.js"
 ---
 
-Du code R qui va bien.
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo  = TRUE)
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+# Préparatifs 
+
+## Chargement des bibliothèques
+
+Commençons par charger quelques packages pour la manipulation des données et pour la représentation des résultats
+
+```{r packages, message = FALSE, warning = FALSE}
+library(PLNmodels)    
+library(tidyverse)    
+library(knitr)        
+library(corrplot) 
+library(igraph)
+library(tidygraph)
+library(ggraph)
+theme_set(theme_bw()) 
+```
+
+## Import des données
+
+Les données ont été travaillées en amont pour les mettre au format tabulaire, avec un fichier plat pour:
+
+- les comptages d'espèces (`counts`)
+- l'effort d'échantillonnage (`offsets`)
+- les variables descriptives des sites (`covariates`)
+
+```{r importing data, message=FALSE}
+offsets    <- readr::read_csv("dat/filtered_offset.csv")
+counts     <- readr::read_csv("dat/filtered_abundance.csv")
+covariates <- readr::read_csv("dat/filtered_metadata.csv")
+```
+
+## Preparation des données
+
+```{r create marinet data}
+marinet <- PLNmodels::prepare_data(counts, covariates)
+marinet$Offset <- as.matrix(offsets)
+```
+
+On formate quelques variables (notamment renommer et réordonner les facteurs) pour leur donner du sens. 
+
+```{r format marinet data}
+marinet$site   <- factor(x = marinet$site, 
+                         levels = c("ANACAPA_MIDDLE_ISLE", "ANACAPA_EAST_ISLE"), 
+                         labels = c("AMI", "AEI"))
+marinet$side   <- factor(x = marinet$side, levels = c("W", "CEN", "E"))
+marinet$zone   <- factor(x = marinet$zone, levels = c("INNER", "MID", "OUTER"))
+marinet$year   <- as.character(marinet$year)  
+```
+
+## Covariables
+
+Il y a 4 covariables intéressantes: 
+
+- `year`: année de prélèvement (1999 à 2012)
+- `site`: îlot de prélèvement (`AMI` pour l'îlot du milieu et `AEI` pour l'îlot Est), 
+- `side`: la région d'observation sur l'îlot (`E` pour la côté Est, `W` pour la côte Ouest et `CEN` pour le centre de l'îlot)
+- `zone`: la zone de prélèvement, par rapport à la côte (`INNER`, `MID` et `OUTER` correspondant à des zones de plus en plus éloingées de la côte)
+
+```{r covariables glimpse}
+select(marinet, -obs_unit_id, -Abundance, -Offset) %>% mutate(year = factor(year)) %>% summary()
+```
+
+Le design est très équilibré entre `side`, `site` et `year`.
+
+```{r plan experience}
+table(marinet$side, marinet$site)
+table(marinet$side, marinet$year)
+```
+
+# Modèle PLN standard
+
+L'objectif de cette section est d'étudier l'effet structurant de chacune des covariables. Toutes les variables d'intérêt étant catégorielles, on ajuste un module sans intercept (`0 + `) pour faciliter l'interprétation: chaque paramètre correspond ainsi à la moyenne des effets dans un groupe.
+
+## Ajustement et comparaison des modèles
+
+On ajuste les modèles à l'aide de la fonction `PLN()`. 
+
+```{r M1 mdoels, eval = FALSE, message = FALSE, results='hide'}
+## Modèle sans covariable
+myPLN_M0 <- PLNmodels::PLN(Abundance ~ 1 + offset(log(Offset)), data = marinet)
+## Modèles avec 1 covariable
+myPLN_M1_year <- PLNmodels::PLN(Abundance ~ 0 + year + offset(log(Offset)), data = marinet)
+myPLN_M1_side <- PLNmodels::PLN(Abundance ~ 0 + side + offset(log(Offset)), data = marinet)
+myPLN_M1_site <- PLNmodels::PLN(Abundance ~ 0 + site + offset(log(Offset)), data = marinet)
+myPLN_M1_zone <- PLNmodels::PLN(Abundance ~ 0 + zone + offset(log(Offset)), data = marinet)
+```
+
+```{r echo = FALSE}
+PLN_models <- c("myPLN_M0", paste0("myPLN_M1_", c("year", "side", "site", "zone", "period")))
+for (model in PLN_models) {
+  assign(x = model, value = read_rds(paste0("dat/", model, ".rds")))
+}
+```
+
+On peut ensuite tous les modèles en termes de critère BIC: la variable la plus structurante est l'îlot. 
+
+```{r}
+criteria_M0_M1 <- 
+  rbind(M0      = myPLN_M0$criteria,
+        M1_year = myPLN_M1_year$criteria,
+        M1_site = myPLN_M1_site$criteria,
+        M1_side = myPLN_M1_side$criteria,
+        M1_zone = myPLN_M1_zone$criteria
+        )
+criteria_M0_M1 %>% kable()
+```
+
+## Effet îlot
+
+On peut extraire les coefficients de régression de l'îlot sur l'abondance de chacune des espèces avec `coefficients()` et les représenter avec `corrplot()`. Le graphe suggère une association entre certaines espèces et certains sites: LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l'îlot AEI et TSYM (un maquereau) pour l'îlot AMI.
+
+```{r, fig.width=10, fig.height=1.5}
+myPLN_M1_site %>% 
+  coefficients() %>% t() %>% round(1) %>% 
+  corrplot(is.corr = FALSE, method = 'color', tl.cex = .5, cl.pos = "n")
+```
+
+On note ces espèces pour la suite des analyses. 
+
+```{r}
+flagged_species <- c("LAMSPP", "PTECALAD", "MEGSPP", "SJAP", "TSYM")
+```
+
+## Effet année
+
+Le même travail sur l'effet de l'année suggère que que les années se suivent et se ressemblent à partir de 2002: un modèle avec un effet par année n'est pas très judicieux. 
+
+```{r, fig.width=10, fig.height=3}
+myPLN_M1_year %>% 
+  coefficients() %>% t() %>% round(1) %>% 
+  corrplot(is.corr = FALSE, method = 'color', tl.cex = .5, cl.pos = "n")
+```
+
+L'information portée par les année est en effet très similaire, comme le montre un clustering des coefficients de régression:
+
+```{r clustering year}
+year_hclust <- myPLN_M1_year %>% 
+  coefficients() %>% t() %>% dist() %>% hclust(method = 'ward.D2')
+plot(year_hclust)
+```
+
+On définit donc une variable synthétique `period` qui agrège les années antérieures à 2001 d'un côté et les années postérieures de l'autre. 
+
+```{r covariable period}
+marinet$period <- factor(ifelse(marinet$year <= 2001, '<= 2001', "> 2001"))
+```
+
+On ajuste un modèle avec un effet période plutôt qu'année. 
+
+```{r covariate period, eval = FALSE}
+myPLN_M1_period <- PLNmodels::PLN(Abundance ~ 0 + period + offset(log(Offset)), data = marinet)
+```
+
+L'effet est maintenant significatif en terme de BIC
+```{r period effect global}
+rbind(criteria_M0_M1, M1_period = myPLN_M1_period$criteria) %>% kable()
+```
+
+Au final, l'analyse naïve fait ressortir deux effets forts (îlot et période) et une association entre certaines espèces et certains sites. 
+
+# Réduction de dimension
+
+Le modèle PLN standard s'appuie sur un espace latent de dimension 66 (une par espèce). La variante PLN PCA cherche à en extraire un sous-espace de plus faible dimension. 
+
+## Modèle sans covariable
+
+Nous commençons par une ACP standard, c'est à dire sans covariables en laissant le modèle tourner jusqu'à 20 dimensions latentes. 
+
+```{r eval = FALSE}
+myPCA_m0 <- PLNmodels::PLNPCA(formula = Abundance ~ 1 + offset(log(Offset)),
+                              data = marinet, 
+                              ranks = 1:20)
+```
 
 
-## Trajectoire
+```{r fit pca m0, echo = FALSE}
+myPCA_m0 <- readr::read_rds("dat/myPCA_m0.rds")
+```
 
-Les ingrédients
+```{r print pca m0}
+myPCA_m0
+```
 
-1. Huile d'olive
-2. Citron
-3. Sel
-4. Poivre
+Les critères de sélection de modèles suggèrent entre 18 (ICL) et 19 (BIC) dimensions latentes. Au vu des courbes, une méthode de type "heuristique de pente" en aurait peut-être sélectionné une dizaine. 
 
+```{r pca m0 criteria}
+plot(myPCA_m0)
+```
 
-## Mouvements
+Explorons le modèle à 19 dimensions latentes pour vérifier l'effet des covariables précédemment identifiées. 
 
-Au minimum il faut :
+```{r}
+model_m0 <- myPCA_m0$getBestModel(crit = "BIC")
+```
+
+Un scree plot montre la variance des positions latentes selon chacun des axes dans l'espace latent:
+
+```{r}
+ggplot(data.frame(rank = 1:model_m0$rank, 
+                  val  = 100 * model_m0$percent_var), 
+         aes(x = rank, y = val)) + geom_col() + 
+    labs(x = "Axis", y = "Variance (%)")
+```
+
+### Exploration de la structure
+
+On s'intéresse à la localisation des échantillons dans le premier plan factoriel (axes 1 et 2 du modèle à 19 dimensions): la structure latente reflète t-elle les covariables précédemment identifiées? 
+
+#### Effet période
+
+```{r m0_period, fig.dim=c(7, 6)}
+plot(model_m0, axes = c(1, 2), map = "individual", ind_cols = marinet$period)
+```
+
+#### Effet îlot
+
+On constate un énorme effet îlot sur l'axe 1. 
+
+```{r m0_site, fig.dim=c(7, 6)}
+plot(model_m0, axes = c(1, 2), map = "individual", ind_cols = marinet$site)
+```
+
+### Exploration des corrélations 
+
+On peut également explorer les corrélations entre espèces et dimensions latentes, en singularisant les espèces "spécifiques" d'un site. Beaucoup d'espèces sont fortement associées à l'axe 1. 
+
+```{r fig.dim=c(7, 7)}
+plot(model_m0, axes = 1:2, map = "var", 
+     var_cols = colnames(marinet$Abundance) %in% flagged_species,
+     plot = FALSE) + 
+    guides(color = guide_none()) + 
+    scale_color_manual(values = c("#f1a34088", "#998ec3")) + 
+    coord_equal() + 
+    ggtitle(NULL)
+```
+
+## Correction de l'effet îlot
+
+On illustre l'intérêt des covariables en neutralisant l'effet îlot pour faire mieux ressortir d'autres effets. 
+
+```{r eval = FALSE}
+myPCA_m1 <- PLNmodels::PLNPCA(
+  formula = Abundance ~ 0 + site + offset(log(Offset)),
+  data = marinet, 
+  ranks = 1:20
+)
+```
+
+```{r fit pca m1, echo = FALSE}
+myPCA_m1 <- readr::read_rds("dat/myPCA_m1.rds")
+```
+
+On choisit de nouveau un modèle à 19 dimensions. 
+
+```{r}
+myPCA_m1
+```
+
+```{r}
+model_m1 <- myPCA_m1$getBestModel(crit = "BIC")
+```
+
+La variance est mieux réparti entre les différentes dimensions de l'espace latent. 
+
+```{r}
+ggplot(data.frame(rank = 1:model_m1$rank, 
+                  val  = 100 * model_m1$percent_var), 
+         aes(x = rank, y = val)) + geom_col() + 
+    labs(x = "Axis", y = "Variance (%)")
+```
+
+### Exploration de la structure
+
+#### Effet période
+
+L'effet période est plus marquée que dans l'analyse précédente. 
+
+```{r m1_period, fig.dim=c(7, 6)}
+plot(model_m1, axes = c(1, 2), map = "individual", ind_cols = marinet$period)
+```
+
+#### Effet îlot
+
+L'effet résiduel de l'îlot dans l'espace latent est fortement réduit par rapport à l'analyse précédente. 
+
+```{r m1_site, fig.dim=c(7, 6)}
+plot(model_m1, axes = c(1, 2), map = "individual", ind_cols = marinet$site)
+```
+En particulier, on voit apparaître un effet de second ordre: celui du côté de prélèvement. 
+
+```{r m1_side, fig.dim=c(7, 6)}
+plot(model_m1, axes = c(1, 2), map = "individual", ind_cols = marinet$side)
+```
+
+### Exploration des corrélations 
+
+```{r fig.dim=c(7, 7)}
+plot(model_m1, axes = 1:2, map = "var", 
+     var_cols = colnames(marinet$Abundance) %in% flagged_species,
+     plot = FALSE) + 
+    guides(color = guide_none()) + 
+    scale_color_manual(values = c("#f1a34088", "#998ec3")) + 
+    coord_equal() + 
+    ggtitle(NULL)
+```
+
+### Focus sur l'ilôt AEI
+
+En se focalisant uniquement sur les échantillons issues de l'îlot AEI, on fait bien ressortir l'effet Période précédemment identifié. 
+
+```{r}
+p <- plot(model_m1, map = "individual", axes = 1:2, plot = FALSE)
+p$data <- bind_cols(p$data, marinet %>% select(-Abundance, -Offset)) %>% 
+  filter(site == "AEI")
+p + 
+  aes(color = period) + 
+  scale_color_discrete(name = "Période", 
+                       labels = c("Avant 2001", "Après 2001")) + 
+  ggtitle("Premier plan factoriel, îlot AEI") + 
+  theme(legend.position = c(0.05, 0.95), legend.justification = c(0, 1))
+```
+
+## Modèle complet
+
+On corrige maintenant par l'ensemble des covariables structurantes (île, côté, période, zone)
+
+```{r eval = FALSE}
+myPCA_m2 <- PLNmodels::PLNPCA(
+  formula = Abundance ~ site + side + period + zone + offset(log(Offset)),
+  data = marinet, 
+  ranks = 1:20
+)
+```
+
+```{r fit pca m2, echo = FALSE}
+myPCA_m2 <- readr::read_rds("dat/myPCA_m2.rds")
+```
+
+En faisant celà, on diminue la dimension de l'espace latent (pour le critère ICL). 
+
+```{r}
+myPCA_m2
+```
+
+```{r}
+model_m2 <- myPCA_m2$getBestModel(crit = "BIC")
+```
+
+```{r}
+ggplot(data.frame(rank = 1:model_m2$rank, 
+                  val  = 100 * model_m2$percent_var), 
+         aes(x = rank, y = val)) + geom_col() + 
+    labs(x = "Axis", y = "Variance (%)")
+```
+
+### Exploration de la structure
+
+#### Effet période
+
+L'effet période a été corrigé par le modèle. 
+
+```{r m2_period, fig.dim=c(7, 6)}
+plot(model_m2, axes = c(1, 2), map = "individual", ind_cols = marinet$period)
+```
+
+#### Effet îlot
+
+L'effet résiduel de l'îlot dans l'espace latent est toujours présent mais réduit par rapport à l'analyse naïve. 
+
+```{r m2_site, fig.dim=c(7, 6)}
+plot(model_m2, axes = c(1, 2), map = "individual", ind_cols = marinet$site)
+```
+
+### Exploration des corrélations 
+
+```{r fig.dim=c(7, 7)}
+plot(model_m2, axes = 1:2, map = "var", 
+     var_cols = colnames(marinet$Abundance) %in% flagged_species,
+     plot = FALSE) + 
+    guides(color = guide_none()) + 
+    scale_color_manual(values = c("#f1a34088", "#998ec3")) + 
+    coord_equal() + 
+    ggtitle(NULL)
+```
+
+Le scree plot est relativement équilibré entre les différents axes que dans le modèle précédent. 
+
+## Conclusion
+
+La réduction de dimension fait apparaître:
+
+- une forte structuration Est-Ouest des communautés, avec un effet îlot et un effet côté marqués
+- un petit effet période
+
+Inclure les covariables dans le modèle permet de:
+
+- réduire la dimension de l'espace latent et de neutraliser (dans une certaine mesure) l'impact de ces covariables. 
+- mieux répartir les espèces sur l'hypersphère des corrélations
+
+# Inférence de réseaux
+
+La variante PLNnetwork permet d'estimer les interactions entre espèces. Une originalité de la méthode est de contrôler pour les covariables. Nous avons déjà identifié les effets îlot et année comme structurant mais nous allons considérer ici toutes les modèles possibles allant du modèle sans covariable (`Abundance ~ 1 + offset(log(Offset))`) au modèle complet (`Abundance ~ site + side + period + zone + offset(log(Offset))`) en couvrant les $2^4$ modèles possibles. 
+
+## Ajustement de modèles
+
+On commence par définir la liste des modèles. 
+
+```{r}
+models_formula <- c(
+  # Modèle sans covariable
+  'Abundance ~ 1', 
+  # Modèles à 1 covariable
+  'Abundance ~ year', 
+  'Abundance ~ site', 
+  'Abundance ~ side', 
+  'Abundance ~ zone', 
+  # Modèles à 2 covariables
+  'Abundance ~ year + site', 
+  'Abundance ~ year + side', 
+  'Abundance ~ year + zone', 
+  'Abundance ~ site + side', 
+  'Abundance ~ site + zone', 
+  'Abundance ~ side + zone', 
+  # Modèles à 3 covariables
+  'Abundance ~ year + site + side', 
+  'Abundance ~ year + site + zone', 
+  'Abundance ~ year + side + zone', 
+  'Abundance ~ site + side + zone', 
+  # Modèle complet
+  'Abundance ~ year + site + side + zone'
+  )
+## Ajout de l'offset
+models_formula <- paste(models_formula, '+ offset(log(Offset))')
+```
+
+On fixe ensuite une grille de pénalités et un ensemble de sous-échantillons communs à tous les modèles pour la sélection de modèle et l'estimation de la robustesse des arêtes. 
+
+```{r eval = FALSE}
+lambda <- exp(seq(log(20), log(.01), length.out=100))
+subNb <- 100
+n <- nrow(marinet)
+subSamples <- list(); for(s in 1:subNb){subSamples[[s]] <- sample(1:n, round(.8*n))}
+```
+
+On ajuste ensuite chacun des modèles avec `PLNnetwork()`, en utilisant le critère stars (via `stability_selection()`) pour estimer la robustesse des arêtes pour chaque niveau de pénalité.
+
+```{r eval = FALSE, message = FALSE}
+PLNnet <- vector(mode = "list", length = length(modelList))
+names(PLNnet) <- models_formula
+## Ajustement de tous les modèles, avec procédure de sélection de pénalité par robustesse des arêtes
+for (formula in models_formula) {
+  network <- PLNnetwork(formula = as.formula(formula), data = marinet, penalties = lambda)
+  stability_selection(network, force = TRUE, subsamples = subSamples)
+  PLNnet[formula] <- network
+}
+```
+
+```{r echo = FALSE}
+PLNnet <- readRDS('dat/PLNnet.rds')
+```
+
+**Note** Si on ne cherche pas à comparer autant de modèles (par exemple parce qu'on sait quelles covariables inclure dans le modèle), il n'est pas nécessaire de spécifier la grille de pénalités  et l'ensemble des sous-échantillons à la main. On le fait ici uniquement pour faciliter la comparaison entre modèles différents. 
+
+## Comparaison de modèles
+
+Une fois l'ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes: modèle sans covariables (`cst`), modèle complet (`full`), modèle incluant l'effet année (`year`), modèle n'incluant pas l'effet année (`other`). 
+
+```{r}
+models <- tibble(
+  model   = models_formula, 
+  network = PLNnet, 
+  group   = case_when(
+    str_detect(model, "1")    ~ "cst", 
+    str_detect(model, "year") & str_detect(model, "side") & str_detect(model, "site") & str_detect(model, "zone") ~ "full", 
+    str_detect(model, "year") ~ "year", 
+    TRUE                 ~ "other"
+  )
+)
+```
+
+On extrait, pour chaque modèle et chaque pénalité $\lambda$, les différents critères d'ajustement: densité, BIC, vraisemblance variationnelle, etc. 
+
+```{r}
+plotdata <- models %>% 
+  mutate(criteria = map(network, "criteria")) %>% 
+  select(-network) %>% 
+  unnest(cols = criteria)
+```
+
+On peut ensuite représenter la densité en fonction de la pénalité pour chaque modèle
+
+```{r}
+manual_palette <- c("cst" = "black", "full" = "red", 
+                    "other" = "green", "year" = "blue")
+ggplot(plotdata, aes(x = param, y = density, group = model, color = group)) + 
+  geom_line() + 
+  scale_x_log10() + 
+  scale_color_manual(values = manual_palette) +
+  labs(x = "lambda") + 
+  theme(legend.position = c(0.95, 0.95), legend.justification = c(1, 1))
+```
+
+On peut faire de même avec le BIC et la log vraisemblance variationnelle et singulariser la pénalité $\lambda$ correspondant au meilleur BIC. 
+
+```{r}
+ggplot(plotdata, aes(x = param, group = model, color = group)) + 
+  geom_line(aes(y = BIC, linetype = "BIC")) +
+  geom_line(aes(y = loglik, linetype = "Loglik")) + 
+  geom_vline(xintercept = with(plotdata, param[which.max(BIC)]), linetype = 2) + 
+  scale_color_manual(values = manual_palette) +
+  scale_x_log10() + 
+  labs(x = "lambda")
+```
+
+## Extraction du meilleur réseau. 
+
+On extrait le meilleur modèle au sens du critère BIC. 
+
+```{r}
+best_model <- with(plotdata, model[which.max(BIC)])
+best_model
+```
+
+avant d'extraire la famille de réseaux correspondantes (un réseau par pénalité)
+
+```{r}
+networks <- PLNnet[[best_model]]
+networks
+```
+
+Puis on extrait le meilleur réseau (correspondant à la pénalité optimale) pour ce modèle
+
+```{r}
+best_network <- networks$getBestModel("BIC")
+best_network
+```
+
+## Robustesse des arêtes
+
+On peut visualiser le pourcentage de sélection de chaque arête par la procédure stars dans ce réseau:
+
+```{r}
+## Pénalité du meilleur réseau
+best_penalty <- best_network$penalty
+stability_scores <- networks$stability_path %>% 
+  filter(round(Penalty - best_penalty, digits = 6) == 0)
+head(stability_scores)
+```
+
+Les probabilités de sélection pour la majorité des arêtes sont proches de 0 ou de 1, indiquant que les arêtes sélectionnées sont robustes. 
+
+```{r}
+hist(stability_scores$Prob, breaks = 50, 
+     xlab = "Probabilité de sélection dans les sous échantillons", main = NA)
+```
+
+On peut également rajouter l'information de présence / absence de l'arête dans le réseau et comparer la présence dans le graphe final (sélectionné par BIC) et la probabibilté d'inclusion dans les sous-échantillons. De façon cohérente et rassurante, la probabilité de sélection dans les sous-échantillons est faibles pour les arêtes absentes et forte pour les arêtes présentes dans le graphe.  
+
+```{r}
+is_present <- function(x, y) {
+  network <- best_network$latent_network()
+  row <- match(x, rownames(network))
+  col <- match(y, colnames(network))
+  network[cbind(row, col)] != 0
+}
+stability_scores <- stability_scores %>% mutate(in_graph = is_present(Node1, Node2))
+ggplot(stability_scores, aes(x = in_graph, y = Prob)) + geom_boxplot()
+```
+
+## Représentation du réseau
+
+On peut répresenter le meilleur réseau:
+
+```{r, fig.width=7, fig.height=6}
+best_network$plot_network()
+```
+
+Et la distribution des degrés dans le réseau.
+
+```{r}
+degrees <- rowSums(as(best_network$latent_network(), "matrix") != 0) - 1
+hist(degrees, xlab = "Degré", main = NA)
+```
+
+On peut aussi réorganiser la matrice d'adjacence en fonction du type de l'espèce (algue, poisson ou invertébré). 
+
+```{r}
+species_description <- tribble(
+       ~species,          ~type,
+         "AHOL",         "fish",
+       "ANTSOL", "invertebrate",
+       "APLCAL", "invertebrate",
+         "ATHE",         "fish",
+       "BARNAC", "invertebrate",
+         "BFRE",         "fish",
+       "BRANCH",        "algae",
+        "BROWN",        "algae",
+         "BRYO", "invertebrate",
+        "BUSHY",        "algae",
+         "CAGG",         "fish",
+       "CENCOR", "invertebrate",
+       "COMTUN", "invertebrate",
+         "CPUN",         "fish",
+       "CRAGIG", "invertebrate",
+       "CRUCOR",        "algae",
+       "CYPSPA", "invertebrate",
+       "CYSOSM",        "algae",
+     "CYSOSMAD",        "algae",
+  "DICTYOTALES", "invertebrate",
+       "DIOCHA", "invertebrate",
+     "EISARBAD",        "algae",
+         "EJAC",         "fish",
+         "EMOR",         "fish",
+       "ENCRED",        "algae",
+       "ERECOR",        "algae",
+         "GNIG",         "fish",
+         "HROS",         "fish",
+         "HRUB",         "fish",
+         "HSEM",         "fish",
+       "KELKEL", "invertebrate",
+          "KGB",         "fish",
+         "LACY",        "algae",
+       "LAMFAR",        "algae",
+       "LAMSPP",        "algae",
+       "LOPCHI", "invertebrate",
+     "LYTANAAD", "invertebrate",
+    "MACPYR_HF",        "algae",
+     "MACPYRAD",        "algae",
+         "MCAL",         "fish",
+       "MEGCRE", "invertebrate",
+       "MEGSPP", "invertebrate",
+       "MEGUND", "invertebrate",
+         "OCAL",         "fish",
+         "OPIC",         "fish",
+          "OYT",         "fish",
+       "PACFIM", "invertebrate",
+       "PANINT", "invertebrate",
+       "PARPAR", "invertebrate",
+       "PATMIN", "invertebrate",
+         "PCLA",         "fish",
+       "PISGIG", "invertebrate",
+     "PTECALAD",        "algae",
+         "RVAC",         "fish",
+         "SATR",         "fish",
+         "SJAP",         "fish",
+         "SMYS",         "fish",
+       "SPONGE", "invertebrate",
+         "SPUL",         "fish",
+         "SSAG",         "fish",
+     "STRFRAAD", "invertebrate",
+     "STRPURAD", "invertebrate",
+       "TETAUR", "invertebrate",
+         "TSYM",         "fish",
+     "TUBEWORM", "invertebrate",
+         "TURF",        "algae"
+  )
+
+```
+
+```{r fig.width = 10, fig.height=10}
+species_order <- species_description %>% arrange(type, species) %>% pull(species)
+## Mise en forme du graphe au format tidy
+graph_data <- as(best_network$latent_network(), "matrix") %>% 
+  as_tibble(rownames = "Node1") %>% 
+  pivot_longer(cols = -Node1, names_to = "Node2", values_to = "Edge_value") %>% 
+  ## suppression de la diagonale
+  mutate(Edge_value = if_else(Node1 == Node2, 0, Edge_value)) %>% 
+  ## Ajout du type pour l'espèce du noeud 1 
+  inner_join(species_description, by = c("Node1" = "species")) %>% 
+  ## Ajout du type pour l'espèce du noeud 2
+  inner_join(species_description, by = c("Node2" = "species"), 
+             suffix = c("_node1", "_node2")) %>% 
+  ## transformation en facteur
+  mutate(Node1 = factor(Node1, levels = species_order), 
+         Node2 = factor(Node2, levels = rev(species_order)))
+## Représentation de la matrice d'adjacence
+ggplot(graph_data, aes(x = Node1, y = Node2, fill = Edge_value)) + 
+  geom_tile() + 
+  scale_fill_gradient2(na.value = "white", name = "Correlation partielle") + 
+  facet_grid(type_node2 ~ type_node1, scales = "free", space = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+```
+
+## Focus sur un sous-réseau
+
+Enfin, on se focalise sur deux espèces d'oursins: l'espèce invasive d'oursin violet STRPURAD et l'espèce native et comestible d'ourson rouge STRFRAAD. On commence par extraire le sous-graphe formé des voisinages de ces deux espèces. 
+
+```{r}
+## Export du graphe au format tidygraph
+subgraph <- best_network$latent_network() %>% 
+  graph_from_adjacency_matrix(mode = "undirected", weighted = TRUE, diag = FALSE) %>% 
+  as_tbl_graph() %>% 
+  ## Extraction des voisinages de STRPURAD et STRFRAAD
+  activate(edges) %>% 
+  filter(.N()$name[from] %in% c("STRPURAD", "STRFRAAD") | 
+          .N()$name[to] %in% c("STRPURAD", "STRFRAAD") ) %>% 
+  ## Ajout du type de chaque espèce et extraction des noeuds non-isolés
+  activate(nodes) %>% 
+  inner_join(species_description, by = c("name" = "species")) %>%
+  filter(centrality_degree() > 0)
+```
+
+Avant de le visualiser:
+
+```{r fig.width=10, fig.height=6}
+ggraph(subgraph, layout="stress") +
+  geom_edge_link(aes(colour = factor(sign(weight)), width = abs(weight)))  + 
+  geom_node_point(aes(fill = type), size = 5, shape = 21) + 
+  geom_node_text(aes(label= name), repel=TRUE) + 
+  labs(edge_width="sign")  + theme_graph() + 
+  scale_fill_discrete(name = "Type d'espèce") + 
+  scale_edge_width(name = "Intensité de la corrélation partielle") + 
+  scale_edge_color_discrete(name = "Signe de la corrélation partielle", labels = c('<0', '>0'))
+```
+
+# Information de session
+
+```{r}
+sessionInfo()
+```
 
