@@ -76,17 +76,6 @@ ou en espérance
 plot(my_model, type = "expected")
 ```
 
-On peut maintenant fournir une représentation mésoscopique du réseau. 
-
- 
-```{r plot meso_foodweb expected}
-#plot(my_model, type = "meso", 
-#     plotOptions = list(vertex.size = 2, 
-#                        edge.width = 0.7, 
-#                        edge.arrow.width = 0.7, 
-#                        edge.threshold = 0.05))
-```
-
 ## Réseau bipartite : exemple d'un réseau d'interactions entre plantes et insectes pollinisateurs 
 
 ## Les données 
@@ -140,17 +129,10 @@ plotweb(adjMat[order(cp$rowmembership), order(cp$colmembership)], method = "norm
     col.high = c("Darkred", "Orange")[sort(cp$colmembership)], col.low = c("Darkgreen", 
         "Lightgreen")[sort(cp$rowmembership)], text.rot = 90, col.interaction = "gray")
 ``` 
-ou bien une version mésoscopique du réseau.
- 
-```{r plot meso_plantpoll expected}
-#plot(my_model, type = "meso", plotOptions = list(vertex.size = c(6, 2), 
-#    vertex.label.name = c("Plant.", "Poll.")))
-```
 
 ```{r sessionInfo}
 sessionInfo()
 ```
-
 
 # Références
 
