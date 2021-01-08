@@ -460,9 +460,9 @@ plotMyMatrix(adjMat, dimLabels = list(row = &quot;Plant&quot;, col = &quot;Poll&
 <pre class="r"><code>my_model &lt;- estimateBipartiteSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;Plant&quot;, 
     col = &quot;Poll&quot;), estimOptions = list(verbosity = 0, plot = FALSE))</code></pre>
 <pre class="r"><code># Pour sauvegarder les modèles estimés
-# save(my_model, file = &quot;result/PlantPollRes.rda&quot;)
+save(my_model, file = &quot;PlantPollRes.rda&quot;)
 # Pour les recharger ultérieurement
-# load(file = &quot;result/PlantPollRes.rda&quot;)</code></pre>
+load(file = &quot;PlantPollRes.rda&quot;)</code></pre>
 <p>Les modèles estimés au cours de la procédure sont disponibles dans <code>my_model$storedModels</code>. Le meilleur modèle peut être choisi à l’aide d’un critère ICL. Visualisons les modèles estimés :</p>
 <pre class="r"><code>storedModels &lt;- my_model$storedModels
 print(storedModels)</code></pre>
