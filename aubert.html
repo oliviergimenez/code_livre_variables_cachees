@@ -443,12 +443,6 @@ ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xinte
 <p>ou en espérance</p>
 <pre class="r"><code>plot(my_model, type = &quot;expected&quot;)</code></pre>
 <p><img src="aubert_files/figure-html/plot%20matrix_foodweb%20expected-1.png" width="672" /></p>
-<p>On peut maintenant fournir une représentation mésoscopique du réseau.</p>
-<pre class="r"><code>#plot(my_model, type = &quot;meso&quot;, 
-#     plotOptions = list(vertex.size = 2, 
-#                        edge.width = 0.7, 
-#                        edge.arrow.width = 0.7, 
-#                        edge.threshold = 0.05))</code></pre>
 </div>
 <div id="réseau-bipartite-exemple-dun-réseau-dinteractions-entre-plantes-et-insectes-pollinisateurs" class="section level2">
 <h2>Réseau bipartite : exemple d’un réseau d’interactions entre plantes et insectes pollinisateurs</h2>
@@ -466,9 +460,9 @@ plotMyMatrix(adjMat, dimLabels = list(row = &quot;Plant&quot;, col = &quot;Poll&
 <pre class="r"><code>my_model &lt;- estimateBipartiteSBM(adjMat, model = &quot;bernoulli&quot;, dimLabels = list(row = &quot;Plant&quot;, 
     col = &quot;Poll&quot;), estimOptions = list(verbosity = 0, plot = FALSE))</code></pre>
 <pre class="r"><code># Pour sauvegarder les modèles estimés
-# save(my_model, file = &quot;result/PlantPollRes.rda&quot;)
+save(my_model, file = &quot;PlantPollRes.rda&quot;)
 # Pour les recharger ultérieurement
-# load(file = &quot;result/PlantPollRes.rda&quot;)</code></pre>
+load(file = &quot;PlantPollRes.rda&quot;)</code></pre>
 <p>Les modèles estimés au cours de la procédure sont disponibles dans <code>my_model$storedModels</code>. Le meilleur modèle peut être choisi à l’aide d’un critère ICL. Visualisons les modèles estimés :</p>
 <pre class="r"><code>storedModels &lt;- my_model$storedModels
 print(storedModels)</code></pre>
@@ -494,9 +488,7 @@ ggplot(storedModels) + geom_point(aes(x = nbBlocks, y = ICL)) + geom_vline(xinte
 plotweb(adjMat[order(cp$rowmembership), order(cp$colmembership)], method = &quot;normal&quot;, 
     col.high = c(&quot;Darkred&quot;, &quot;Orange&quot;)[sort(cp$colmembership)], col.low = c(&quot;Darkgreen&quot;, 
         &quot;Lightgreen&quot;)[sort(cp$rowmembership)], text.rot = 90, col.interaction = &quot;gray&quot;)</code></pre>
-<p><img src="aubert_files/figure-html/plot%20reorganized_plantpoll%20%20models-1.png" width="672" /> ou bien une version mésoscopique du réseau.</p>
-<pre class="r"><code>#plot(my_model, type = &quot;meso&quot;, plotOptions = list(vertex.size = c(6, 2), 
-#    vertex.label.name = c(&quot;Plant.&quot;, &quot;Poll.&quot;)))</code></pre>
+<p><img src="aubert_files/figure-html/plot%20reorganized_plantpoll%20%20models-1.png" width="672" /></p>
 <pre class="r"><code>sessionInfo()</code></pre>
 <pre><code>## R version 4.0.2 (2020-06-22)
 ## Platform: x86_64-apple-darwin17.0 (64-bit)

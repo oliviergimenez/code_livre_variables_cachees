@@ -76,20 +76,10 @@ ou en espérance
 plot(my_model, type = "expected")
 ```
 
-On peut maintenant fournir une représentation mésoscopique du réseau. 
-
- 
-```{r plot meso_foodweb expected}
-#plot(my_model, type = "meso", 
-#     plotOptions = list(vertex.size = 2, 
-#                        edge.width = 0.7, 
-#                        edge.arrow.width = 0.7, 
-#                        edge.threshold = 0.05))
-```
-
 ## Réseau bipartite : exemple d'un réseau d'interactions entre plantes et insectes pollinisateurs 
 
 ## Les données 
+
 Nous étudions ici le réseau d'interactions entre plantes et insectes pollinisateurs observées à Ténérife en 2012 @car18.
 Les données ont été reformattées sous forme de matrice dans le fichier [PlantPoll.rda](dat/PlantPoll.rda)  et peuvent se charger à l'aide de la fonction `load`. La matrice de bi-adjacence se visualise grâce à la fonction `sbm::plotMyMatrix`.
 
@@ -105,10 +95,13 @@ La fonction `sbm::estimateBipartiteSBM` effectue l'inférence variationnelle d'u
 ```{r sbm_plantpoll, echo=TRUE, eval = TRUE}
 my_model <- estimateBipartiteSBM(adjMat, model = "bernoulli", dimLabels = list(row = "Plant", 
     col = "Poll"), estimOptions = list(verbosity = 0, plot = FALSE))
+```
+
+```{r sbm_plantpoll_save, echo=TRUE, eval = FALSE}
 # Pour sauvegarder les modèles estimés
-# save(my_model, file = "result/PlantPollRes.rda")
+save(my_model, file = "PlantPollRes.rda")
 # Pour les recharger ultérieurement
-# load(file = "result/PlantPollRes.rda")
+load(file = "PlantPollRes.rda")
 ```
 
 Les modèles estimés  au cours de la procédure sont disponibles dans `my_model$storedModels`. Le meilleur modèle peut être choisi à l'aide d'un critère ICL. Visualisons les modèles estimés :
@@ -129,6 +122,7 @@ On peut maintenant représenter la matrice réordonnée selon ces groupes
 plot(my_model)
 ```
 ou en espérance
+
 ```{r plot matrix_plantpoll expected}
 plot(my_model, type = "expected")
 ``` 
@@ -140,17 +134,10 @@ plotweb(adjMat[order(cp$rowmembership), order(cp$colmembership)], method = "norm
     col.high = c("Darkred", "Orange")[sort(cp$colmembership)], col.low = c("Darkgreen", 
         "Lightgreen")[sort(cp$rowmembership)], text.rot = 90, col.interaction = "gray")
 ``` 
-ou bien une version mésoscopique du réseau.
- 
-```{r plot meso_plantpoll expected}
-#plot(my_model, type = "meso", plotOptions = list(vertex.size = c(6, 2), 
-#    vertex.label.name = c("Plant.", "Poll.")))
-```
 
 ```{r sessionInfo}
 sessionInfo()
 ```
-
 
 # Références
 

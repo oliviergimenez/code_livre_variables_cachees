@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo  = TRUE)
 
 Ce document constitue une présentation des codes et analyses effectuées dans le chapitre *Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance*. Il est divisée en sections qui reprennent séquentiellement les analyses du chapitre. 
 
-Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici]() et doit être extraite dans le même dossier que le fichier `.Rmd`. 
+Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici](https://mycore.core-cloud.net/index.php/s/2hP8EQm4TxwErPF) et doit être extraite dans le même dossier que le fichier `.Rmd`. 
 
 # Étapes préliminaires
 
