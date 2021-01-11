@@ -12,9 +12,9 @@ mathjax: "http://example.com/MathJax.js"
 knitr::opts_chunk$set(echo  = TRUE)
 ```
 
-Ce document constitue une présentation des codes et analyses effectuées dans le chapitre *Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance*. Il est divisée qui reprennent séquentiellement les analyses du chapitre. 
+Ce document constitue une présentation des codes et analyses effectuées dans le chapitre *Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance*. Il est divisée en sections qui reprennent séquentiellement les analyses du chapitre. 
 
-Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici](https://filesender.renater.fr/?s=download&token=5980ea36-f6a3-44b6-84f6-776ace702e5f) et doit être extraite dans le même dossier que le fichier `.Rmd`. 
+Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici]() et doit être extraite dans le même dossier que le fichier `.Rmd`. 
 
 # Étapes préliminaires
 
@@ -49,7 +49,7 @@ covariates <- readr::read_csv("dat/filtered_metadata.csv")
 
 ## Preparation des données
 
-Les modèles de la librairie PLN nécessitent que les données soient dans un format bien précis: la matrice de comptage doit être accessible comme une *colonne* du jeu de données. 
+Les modèles de la librairie PLN nécessitent que les données soient dans un format bien précis : la matrice de comptage doit être accessible comme une *colonne* du jeu de données. 
 
 ```{r create marinet data}
 marinet <- PLNmodels::prepare_data(counts, covariates)
@@ -80,7 +80,7 @@ On dispose de 4 covariables intéressantes:
 - `year`: année de prélèvement (1999 à 2012)
 - `site`: îlot de prélèvement (`AMI` pour l'îlot du milieu et `AEI` pour l'îlot Est), 
 - `side`: la région d'observation sur l'îlot (`E` pour la côté Est, `W` pour la côte Ouest et `CEN` pour le centre de l'îlot)
-- `zone`: la zone de prélèvement, par rapport à la côte (`INNER`, `MID` et `OUTER` correspondant à des zones de plus en plus éloingées de la côte)
+- `zone`: la zone de prélèvement, par rapport à la côte (`INNER`, `MID` et `OUTER` correspondant à des zones de plus en plus éloignées de la côte)
 
 ```{r covariables glimpse}
 select(marinet, -obs_unit_id, -Abundance, -Offset) %>% mutate(year = factor(year)) %>% summary()
@@ -96,7 +96,7 @@ table(marinet$site, marinet$year)
 
 # Modèle PLN standard
 
-On étudie l'effet de chacune des covariables sur les abondances observées à l'aide du modèle PLN standard. Toutes les variables d'intérêt étant catégorielles, on ajuste un module sans intercept (`0 + `) pour faciliter l'interprétation: chaque coefficient de la matrice de régression $\boldsymbol{\Theta}$ (voire chapitre pour les notations) correspond ainsi simplement à l'effet d'un niveau de la variable sur une espèce.
+On étudie l'effet de chacune des covariables sur les abondances observées à l'aide du modèle PLN standard. Toutes les variables d'intérêt étant catégorielles, on ajuste un module sans intercept (`0 + `) pour faciliter l'interprétation : chaque coefficient de la matrice de régression $\boldsymbol{\Theta}$ (voire chapitre pour les notations) correspond ainsi simplement à l'effet d'un niveau de la variable sur une espèce.
 
 ## Ajustement et comparaison des modèles
 
@@ -121,7 +121,7 @@ for (model in PLN_models) {
 }
 ```
 
-On peut comparer ensuite tous les modèles en termes de critère BIC: la variable la plus structurante est l'îlot. 
+On peut comparer ensuite tous les modèles en termes de critère BIC : la variable la plus structurante est l'îlot. 
 
 ```{r}
 criteria_M0_M1 <- 
@@ -136,7 +136,7 @@ criteria_M0_M1 %>% kable()
 
 ## Effet îlot
 
-On peut extraire les coefficients de régression de l'îlot sur l'abondance de chacune des espèces avec `coefficients()` et les représenter avec `corrplot()`. Le graphe suggère des coefficients élevés (et donc une surabondance) pour certaines espèces dans certains sites: LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l'îlot AEI et TSYM (un maquereau) pour l'îlot AMI.
+On peut extraire les coefficients de régression de l'îlot sur l'abondance de chacune des espèces avec `coefficients()` et les représenter avec `corrplot()`. Le graphe suggère des coefficients élevés (et donc une surabondance) pour certaines espèces dans certains sites : LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l'îlot AEI et TSYM (un maquereau) pour l'îlot AMI.
 
 ```{r, fig.width=10, fig.height=1.5}
 myPLN_M1_site %>% 
@@ -152,7 +152,7 @@ flagged_species <- c("LAMSPP", "PTECALAD", "MEGSPP", "SJAP", "TSYM")
 
 ## Effet année
 
-Le même travail sur l'effet de l'année suggère que que les années se suivent et se ressemblent à partir de 2002: utiliser un effet par année n'est pas très parcimonieux. 
+Le même travail sur l'effet de l'année suggère que les années se suivent et se ressemblent à partir de 2002 : utiliser un effet par année n'est pas très parcimonieux. 
 
 ```{r, fig.width=10, fig.height=3}
 myPLN_M1_year %>% 
@@ -160,7 +160,7 @@ myPLN_M1_year %>%
   corrplot(is.corr = FALSE, method = 'color', tl.cex = .5, cl.pos = "n")
 ```
 
-L'information portée par les année est en très similaire, un arbre de clustering des coefficients de régression correspondant à chaque année suggère de regrouper les années antérieures à à 2001 d'un côté et les années postérieures de l'autre. 
+L'information portée par les années est très similaire, un arbre de clustering des coefficients de régression correspondant à chaque année suggère de regrouper les années antérieures à 2001 d'un côté et les années postérieures de l'autre. 
 
 ```{r clustering year}
 year_hclust <- myPLN_M1_year %>% 
@@ -190,7 +190,7 @@ Au final, l'analyse naïve fait ressortir deux variables (îlot et période) ass
 
 # Réduction de dimension
 
-Le modèle PLN standard s'appuie sur un espace latent de dimension 66 (une dimension par espèce). La variante PLN-PCA cherche une modèle plus parcimonieuse, basée sur un espace latent de plus faible dimension. 
+Le modèle PLN standard s'appuie sur un espace latent de dimension 66 (une dimension par espèce). La variante PLN-PCA cherche un modèle plus parcimonieux, basé sur un espace latent de plus faible dimension. 
 
 ## Modèle sans covariable
 
@@ -202,7 +202,7 @@ myPCA_m0 <- PLNmodels::PLNPCA(formula = Abundance ~ 1 + offset(log(Offset)),
                               ranks = 1:20)
 ```
 
-On charge la famille de modèles précalculée. 
+On charge la famille de modèles précalculés. 
 
 ```{r fit pca m0}
 myPCA_m0 <- readr::read_rds("dat/myPCA_m0.rds")
@@ -212,7 +212,7 @@ myPCA_m0 <- readr::read_rds("dat/myPCA_m0.rds")
 myPCA_m0
 ```
 
-Parmi les 20 modèles ajustées, les critères de sélection de modèles suggèrent 18 (ICL) ou 19 (BIC) dimensions latentes. Au vu des courbes, une méthode de type "heuristique de pente" en aurait peut-être sélectionné une dizaine. 
+Parmi les 20 modèles ajustés, les critères de sélection de modèles suggèrent 18 (ICL) ou 19 (BIC) dimensions latentes. Au vu des courbes, une méthode de type "heuristique de pente" en aurait peut-être sélectionné une dizaine. 
 
 ```{r pca m0 criteria}
 plot(myPCA_m0)
@@ -235,7 +235,7 @@ ggplot(data.frame(rank = 1:model_m0$rank,
 
 ### Exploration de la structure latente {.tabset}
 
-On s'intéresse à la localisation des échantillons dans le premier plan factoriel (axes 1 et 2 du modèle à 19 dimensions): la structure latente reflète t-elle les covariables précédemment identifiées? La réponse est oui dans les deux cas mais avec un effet bien plus fort pour l'îlot que pour la période
+On s'intéresse à la localisation des échantillons dans le premier plan factoriel (axes 1 et 2 du modèle à 19 dimensions) : la structure latente reflète t-elle les covariables précédemment identifiées ? La réponse est oui dans les deux cas mais avec un effet bien plus fort pour l'îlot que pour la période. 
 
 #### Effet période
 
@@ -302,7 +302,7 @@ ggplot(data.frame(rank = 1:model_m1$rank,
 
 #### Effet période
 
-L'effet période est plus marquée que dans l'analyse précédente. 
+L'effet période est plus marqué que dans l'analyse précédente. 
 
 ```{r m1_period, fig.dim=c(7, 6)}
 plot(model_m1, axes = c(1, 2), map = "individual", ind_cols = marinet$period)
@@ -417,19 +417,19 @@ plot(model_m2, axes = 1:2, map = "var",
 
 ## Conclusion
 
-La réduction de dimension fait apparaître:
+La réduction de dimension fait apparaître :
 
-- une forte structuration Est-Ouest des communautés, avec un effet principal îlot et un effet secondaire côté (au sein de chaque îlot)
-- un petit effet période (pour l'îlot AMI)
+- une forte structuration Est-Ouest des communautés, avec un effet principal îlot et un effet secondaire côté (au sein de chaque îlot),
+- un petit effet période (pour l'îlot AMI). 
 
-Inclure les covariables dans le modèle permet de:
+Inclure les covariables dans le modèle permet de :
 
-- réduire la dimension de l'espace latent et de neutraliser (dans une certaine mesure) l'impact de ces covariables sur la structure des échantillons dans l'espace latent. 
-- mieux répartir les espèces sur l'hypersphère des corrélations
+- réduire la dimension de l'espace latent et de neutraliser (dans une certaine mesure) l'impact de ces covariables sur la structure des échantillons dans l'espace latent,
+- mieux répartir les espèces sur l'hypersphère des corrélations. 
 
 # Inférence de réseaux
 
-La variante PLNnetwork permet d'estimer les interactions entre espèces. Une originalité de la méthode est de contrôler pour les covariables pour distinguer les préférences partagées d'habitat de vraies interactions. Nous avons déjà identifié les effets îlot et année/période comme structurant mais nous allons considérer ici toutes les modèles possibles allant du modèle sans covariable (`Abundance ~ 1 + offset(log(Offset))`) au modèle complet (`Abundance ~ site + side + period + zone + offset(log(Offset))`) en couvrant les $2^4$ modèles possibles. 
+La variante PLNnetwork permet d'estimer les interactions entre espèces. Une originalité de la méthode est de contrôler pour les covariables pour distinguer les préférences partagées d'habitat de vraies interactions. Nous avons déjà identifié les effets îlot et année/période comme structurant mais nous allons considérer ici tous les modèles possibles allant du modèle sans covariable au modèle complet : c'est à dire de `Abundance ~ 1 + offset(log(Offset))` à `Abundance ~ site + side + period + zone + offset(log(Offset))`) en couvrant les $2^4$ modèles possibles. 
 
 ## Ajustement de modèles
 
@@ -485,17 +485,17 @@ for (formula in models_formula) {
 }
 ```
 
-On charge les familles de modèles précalculées. 
+On charge les familles de modèles précalculés. 
 
 ```{r}
 PLNnet <- readRDS('dat/PLNnet.rds')
 ```
 
-**Note** Si on ne cherche pas à comparer comme ici des modèles avec différents de covariables (par exemple parce qu'on sait quelles covariables inclure dans le modèle), il n'est pas nécessaire de spécifier la grille de pénalités et l'ensemble des sous-échantillons *à la main*, les fonctions `PLNnetwork()` et `stability_selection()` les calculeront automatiquement. On le fait ici uniquement pour faciliter la comparaison entre modèles différents. 
+**Note** Si on ne cherche pas à comparer comme ici des modèles avec différentes covariables (par exemple parce qu'on sait quelles covariables inclure dans le modèle), il n'est pas nécessaire de spécifier la grille de pénalités et l'ensemble des sous-échantillons *à la main*, les fonctions `PLNnetwork()` et `stability_selection()` les calculeront automatiquement. On le fait ici uniquement pour faciliter la comparaison entre modèles différents. 
 
 ## Comparaison de modèles
 
-Une fois l'ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes: modèle sans covariables (`cst`), modèle complet (`full`), modèle incluant l'effet année (`year`), modèle n'incluant pas l'effet année (`other`). 
+Une fois l'ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes : modèle sans covariables (`cst`), modèle complet (`full`), modèle incluant l'effet année (`year`), modèle n'incluant pas l'effet année (`other`). 
 
 ```{r}
 models <- tibble(
@@ -511,7 +511,7 @@ models <- tibble(
 )
 ```
 
-On compile ensuite pour chaque modèle et chaque pénalité $\lambda$, différents descripteurs du réseau: densité, critère BIC, vraisemblance variationnelle, etc. 
+On compile ensuite pour chaque modèle et chaque pénalité $\lambda$, différents descripteurs du réseau : densité, critère BIC, vraisemblance variationnelle, etc. 
 
 ```{r}
 plotdata <- models %>% 
@@ -570,7 +570,7 @@ best_network
 
 ## Robustesse des arêtes
 
-La procédure stars fournit un score de robustesse pour chaque arête du réseau: le pourcentage de sous-échantillons dans laquelle l'arête est sélectionné. 
+La procédure stars fournit un score de robustesse pour chaque arête du réseau : le pourcentage de sous-échantillons dans laquelle l'arête est sélectionnée. 
 
 ```{r}
 ## Pénalité du meilleur réseau
@@ -602,7 +602,7 @@ ggplot(stability_scores, aes(x = in_graph, y = Prob)) + geom_boxplot()
 
 ## Représentation du réseau
 
-Une fois notre réseau reconstruit, on peut répresenter le représenter. 
+Une fois notre réseau reconstruit, on peut le représenter. 
 
 ```{r, fig.width=7, fig.height=6}
 best_network$plot_network()
@@ -615,7 +615,7 @@ degrees <- rowSums(as(best_network$latent_network(), "matrix") != 0) - 1
 hist(degrees, xlab = "Degré", main = NA)
 ```
 
-Enfin, on peut aussi réorganiser la matrice d'adjacence du réseau en séparant les espèces en fonction de leur type: algue, poisson ou invertébré. 
+Enfin, on peut aussi réorganiser la matrice d'adjacence du réseau en séparant les espèces en fonction de leur type : algue, poisson ou invertébré. 
 
 ```{r}
 species_description <- tribble(
@@ -716,7 +716,7 @@ ggplot(graph_data, aes(x = Node1, y = Node2, fill = Edge_value)) +
 
 ## Focus sur un sous-réseau
 
-Pour finir, on se focalise sur le sous-réseau induit par deux espèces d'oursins: l'espèce invasive d'oursin violet STRPURAD et l'espèce native et comestible d'ourson rouge STRFRAAD. On commence par extraire le sous-graphe formé des voisinages de ces deux espèces. 
+Pour finir, on se focalise sur le sous-réseau induit par deux espèces d'oursins : l'espèce invasive d'oursin violet STRPURAD et l'espèce native et comestible d'oursin rouge STRFRAAD. On commence par extraire le sous-graphe formé des voisinages de ces deux espèces. 
 
 ```{r}
 ## Export du graphe au format tidygraph
@@ -746,7 +746,7 @@ ggraph(subgraph, layout="stress") +
   scale_edge_color_discrete(name = "Signe de la corrélation partielle", labels = c('<0', '>0'))
 ```
 
-# Information de session
+# Informations de session
 
 ```{r}
 sessionInfo()
