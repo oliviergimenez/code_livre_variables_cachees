@@ -140,7 +140,7 @@ criteria_M0_M1 %>% kable()
 
 On peut extraire les coefficients de régression de l'îlot sur l'abondance de chacune des espèces avec `coefficients()` et les représenter avec `corrplot()`. Le graphe suggère des coefficients élevés (et donc une surabondance) pour certaines espèces dans certains sites : LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l'îlot AEI et TSYM (un maquereau) pour l'îlot AMI.
 
-```{r, fig.width=10, fig.height=1.5}
+```{r M1_site, fig.width=10, fig.height=1.5}
 myPLN_M1_site %>% 
   coefficients() %>% t() %>% round(1) %>% 
   corrplot(is.corr = FALSE, method = 'color', tl.cex = .5, cl.pos = "n")
@@ -156,7 +156,7 @@ flagged_species <- c("LAMSPP", "PTECALAD", "MEGSPP", "SJAP", "TSYM")
 
 Le même travail sur l'effet de l'année suggère que les années se suivent et se ressemblent à partir de 2002 : utiliser un effet par année n'est pas très parcimonieux. 
 
-```{r, fig.width=10, fig.height=3}
+```{r M1_year, fig.width=10, fig.height=3}
 myPLN_M1_year %>% 
   coefficients() %>% t() %>% round(1) %>% 
   corrplot(is.corr = FALSE, method = 'color', tl.cex = .5, cl.pos = "n")
@@ -228,7 +228,7 @@ model_m0 <- myPCA_m0$getBestModel(crit = "BIC")
 
 Un scree plot montre la variance des positions latentes selon chacun des axes de l'espace latent. 
 
-```{r}
+```{r pca m0 scree}
 ggplot(data.frame(rank = 1:model_m0$rank, 
                   val  = 100 * model_m0$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
@@ -257,7 +257,7 @@ plot(model_m0, axes = c(1, 2), map = "individual", ind_cols = marinet$site)
 
 On peut également explorer les corrélations entre espèces et dimensions latentes, en mettant en avant les espèces *spécifiques* de la section précédente. On constate ici que beaucoup d'espèces sont fortement associées à l'axe 1, qui correspond à un effet îlot. 
 
-```{r fig.dim=c(7, 7)}
+```{r pca m0 circel, fig.dim=c(7, 7)}
 plot(model_m0, axes = 1:2, map = "var", 
      var_cols = colnames(marinet$Abundance) %in% flagged_species,
      plot = FALSE) + 
@@ -293,7 +293,7 @@ myPCA_m1
 model_m1 <- myPCA_m1$getBestModel(crit = "BIC")
 ```
 
-```{r}
+```{r pca m1 scree}
 ggplot(data.frame(rank = 1:model_m1$rank, 
                   val  = 100 * model_m1$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
@@ -328,7 +328,7 @@ plot(model_m1, axes = c(1, 2), map = "individual", ind_cols = marinet$side)
 
 ### Exploration des corrélations 
 
-```{r fig.dim=c(7, 7)}
+```{r pca m1 circle, fig.dim=c(7, 7)}
 plot(model_m1, axes = 1:2, map = "var", 
      var_cols = colnames(marinet$Abundance) %in% flagged_species,
      plot = FALSE) + 
@@ -342,7 +342,7 @@ plot(model_m1, axes = 1:2, map = "var",
 
 En se focalisant sur l'îlot AEI (le seul pour lequel on dispose de données avant 2001), on fait bien ressortir l'effet Période. 
 
-```{r}
+```{r m1 AEI}
 p <- plot(model_m1, map = "individual", axes = 1:2, plot = FALSE)
 p$data <- bind_cols(p$data, marinet %>% select(-Abundance, -Offset)) %>% 
   filter(site == "AEI")
@@ -380,7 +380,7 @@ myPCA_m2
 model_m2 <- myPCA_m2$getBestModel(crit = "BIC")
 ```
 
-```{r}
+```{r pca m2 scree}
 ggplot(data.frame(rank = 1:model_m2$rank, 
                   val  = 100 * model_m2$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
@@ -407,7 +407,7 @@ plot(model_m2, axes = c(1, 2), map = "individual", ind_cols = marinet$site)
 
 ### Exploration des corrélations 
 
-```{r fig.dim=c(7, 7)}
+```{r pca m2 circle, fig.dim=c(7, 7)}
 plot(model_m2, axes = 1:2, map = "var", 
      var_cols = colnames(marinet$Abundance) %in% flagged_species,
      plot = FALSE) + 
@@ -530,7 +530,7 @@ plotdata <- readRDS('dat/plotdata.rds')
 
 On peut ensuite représenter la densité en fonction de la pénalité $\lambda$ pour chaque modèle (et vérifier que des grandes pénalités conduisent à des réseaux moins denses). 
 
-```{r}
+```{r graph_density}
 manual_palette <- c("cst" = "black", "full" = "red", 
                     "other" = "green", "year" = "blue")
 ggplot(plotdata, aes(x = param, y = density, group = model, color = group)) + 
@@ -543,7 +543,7 @@ ggplot(plotdata, aes(x = param, y = density, group = model, color = group)) +
 
 On peut faire de même avec le BIC et la log vraisemblance variationnelle et singulariser la pénalité $\lambda$ correspondant au modèle possédant le meilleur BIC, toutes familles confondues. 
 
-```{r}
+```{r graph_criteria}
 ggplot(plotdata, aes(x = param, group = model, color = group)) + 
   geom_line(aes(y = BIC, linetype = "BIC")) +
   geom_line(aes(y = loglik, linetype = "Loglik")) + 
@@ -636,14 +636,14 @@ stability_scores <- readRDS("dat/stability_scores.rds")
 
 Ces probabilités de sélection sont proches de 0 ou de 1 pour la majorité des arêtes, indiquant que les arêtes sélectionnées sont robustes. 
 
-```{r}
+```{r stab_scores_hist}
 hist(stability_scores$Prob, breaks = 50, 
      xlab = "Probabilité de sélection dans les sous échantillons", main = NA)
 ```
 
 On peut comparer cette probabilité de sélection avec le fait d'être présent / absent dans le réseau final (choisi par le critère BIC). De façon cohérente et rassurante, la probabilité de sélection dans les sous-échantillons est faible pour les arêtes absentes et forte pour les arêtes présentes dans le graphe.  
 
-```{r}
+```{r stab_scores_boxplot}
 is_present <- function(x, y) {
   network <- best_network$latent_network()
   row <- match(x, rownames(network))
@@ -658,13 +658,13 @@ ggplot(stability_scores, aes(x = in_graph, y = Prob)) + geom_boxplot()
 
 Une fois notre réseau reconstruit, on peut le représenter. 
 
-```{r, fig.width=7, fig.height=6}
+```{r best_network, fig.width=7, fig.height=6}
 best_network$plot_network()
 ```
 
 On peut également s'intéresser à la distribution des degrés dans le réseau. Le `- 1` permet d'exclure les auto-arêtes, qui correspondent aux coefficients diagonaux de la matrice $\boldsymbol{\Omega}$ (voire chapitre pour les notations). 
 
-```{r}
+```{r degree_dist}
 degrees <- rowSums(as(best_network$latent_network(), "matrix") != 0) - 1
 hist(degrees, xlab = "Degré", main = NA)
 ```
@@ -744,7 +744,7 @@ species_description <- tribble(
 
 ```
 
-```{r fig.width = 10, fig.height=10}
+```{r adj_matrix_reordered, fig.width = 10, fig.height=10}
 species_order <- species_description %>% arrange(type, species) %>% pull(species)
 ## Mise en forme du graphe au format tidy
 graph_data <- as(best_network$latent_network(), "matrix") %>% 
@@ -789,7 +789,7 @@ subgraph <- best_network$latent_network() %>%
 
 Puis on le visualise. 
 
-```{r fig.width=10, fig.height=6}
+```{r best_network_subgraph, fig.width=10, fig.height=6}
 ggraph(subgraph, layout="stress") +
   geom_edge_link(aes(colour = factor(sign(weight)), width = abs(weight)))  + 
   geom_node_point(aes(fill = type), size = 5, shape = 21) + 
