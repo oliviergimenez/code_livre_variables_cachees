@@ -388,8 +388,9 @@ div.tocify {
 </div>
 
 
-<p>Ce document constitue une présentation des codes et analyses effectuées dans le chapitre <em>Le modèle Poisson log-normal: un cadre générique pour l’analyse des distributions joint d’abondance</em>. Il est divisée qui reprennent séquentiellement les analyses du chapitre.</p>
-<p>Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers <code>.rds</code> permettant de charger le résultat des analyses chronophages. L’archive est disponible <a href="https://mycore.core-cloud.net/index.php/s/2hP8EQm4TxwErPF">ici</a> et doit être extraite dans le même dossier que le fichier <code>.Rmd</code>.</p>
+<p>Ce document constitue une présentation des codes et analyses effectuées dans le chapitre <em>Le modèle Poisson log-normal: un cadre générique pour l’analyse des distributions joint d’abondance</em>. Il est divisée en sections qui reprennent séquentiellement les analyses du chapitre.</p>
+<p>Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers <code>.rds</code> permettant de charger le résultat des analyses chronophages. L’archive est disponible <a href="https://mycore.core-cloud.net/index.php/s/2hP8EQm4TxwErPF">ici</a> sous sa forme complète (~620 Mo, tous les objets générés dans cette analyse) et <a href="https://filesender.renater.fr/?s=download&amp;token=c52add9c-890a-4e30-b5ea-e275ede951a9">ici</a> sous forme <em>allégée</em> (~22 Mo, uniquement les données nécessaires à la reproduction des graphiques figurant dans cette vignette) et doit être extraite dans le même dossier que le fichier <code>.Rmd</code>.</p>
+<p>Le Rmd contient tous les codes permettant de faire tourner les analyses et de construire tous les objets contenus dans les archives complète et allégée. Il ne nécessite cependant que cette dernière pour générer le document html final.</p>
 <div id="étapes-préliminaires" class="section level1">
 <h1>Étapes préliminaires</h1>
 <div id="chargement-des-bibliothèques" class="section level2">
@@ -418,7 +419,7 @@ covariates &lt;- readr::read_csv(&quot;dat/filtered_metadata.csv&quot;)</code></
 </div>
 <div id="preparation-des-données" class="section level2">
 <h2>Preparation des données</h2>
-<p>Les modèles de la librairie PLN nécessitent que les données soient dans un format bien précis: la matrice de comptage doit être accessible comme une <em>colonne</em> du jeu de données.</p>
+<p>Les modèles de la librairie PLN nécessitent que les données soient dans un format bien précis : la matrice de comptage doit être accessible comme une <em>colonne</em> du jeu de données.</p>
 <pre class="r"><code>marinet &lt;- PLNmodels::prepare_data(counts, covariates)
 marinet$Offset &lt;- as.matrix(offsets)</code></pre>
 <p>On vérifie que la colonne <code>Abundance</code> est bien une matrice.</p>
@@ -452,7 +453,7 @@ marinet$year   &lt;- as.character(marinet$year)  </code></pre>
 <li><code>year</code>: année de prélèvement (1999 à 2012)</li>
 <li><code>site</code>: îlot de prélèvement (<code>AMI</code> pour l’îlot du milieu et <code>AEI</code> pour l’îlot Est),</li>
 <li><code>side</code>: la région d’observation sur l’îlot (<code>E</code> pour la côté Est, <code>W</code> pour la côte Ouest et <code>CEN</code> pour le centre de l’îlot)</li>
-<li><code>zone</code>: la zone de prélèvement, par rapport à la côte (<code>INNER</code>, <code>MID</code> et <code>OUTER</code> correspondant à des zones de plus en plus éloingées de la côte)</li>
+<li><code>zone</code>: la zone de prélèvement, par rapport à la côte (<code>INNER</code>, <code>MID</code> et <code>OUTER</code> correspondant à des zones de plus en plus éloignées de la côte)</li>
 </ul>
 <pre class="r"><code>select(marinet, -obs_unit_id, -Abundance, -Offset) %&gt;% mutate(year = factor(year)) %&gt;% summary()</code></pre>
 <pre><code>##       year     site     side       zone   
@@ -485,7 +486,7 @@ marinet$year   &lt;- as.character(marinet$year)  </code></pre>
 </div>
 <div id="modèle-pln-standard" class="section level1">
 <h1>Modèle PLN standard</h1>
-<p>On étudie l’effet de chacune des covariables sur les abondances observées à l’aide du modèle PLN standard. Toutes les variables d’intérêt étant catégorielles, on ajuste un module sans intercept (<code>0 +</code>) pour faciliter l’interprétation: chaque coefficient de la matrice de régression <span class="math inline">\(\boldsymbol{\Theta}\)</span> (voire chapitre pour les notations) correspond ainsi simplement à l’effet d’un niveau de la variable sur une espèce.</p>
+<p>On étudie l’effet de chacune des covariables sur les abondances observées à l’aide du modèle PLN standard. Toutes les variables d’intérêt étant catégorielles, on ajuste un module sans intercept (<code>0 +</code>) pour faciliter l’interprétation : chaque coefficient de la matrice de régression <span class="math inline">\(\boldsymbol{\Theta}\)</span> (voire chapitre pour les notations) correspond ainsi simplement à l’effet d’un niveau de la variable sur une espèce.</p>
 <div id="ajustement-et-comparaison-des-modèles" class="section level2">
 <h2>Ajustement et comparaison des modèles</h2>
 <p>On ajuste les modèles à l’aide de la fonction <code>PLN()</code>.</p>
@@ -501,7 +502,7 @@ myPLN_M1_zone &lt;- PLNmodels::PLN(Abundance ~ 0 + zone + offset(log(Offset)), d
 for (model in PLN_models) {
   assign(x = model, value = read_rds(paste0(&quot;dat/&quot;, model, &quot;.rds&quot;)))
 }</code></pre>
-<p>On peut comparer ensuite tous les modèles en termes de critère BIC: la variable la plus structurante est l’îlot.</p>
+<p>On peut comparer ensuite tous les modèles en termes de critère BIC : la variable la plus structurante est l’îlot.</p>
 <pre class="r"><code>criteria_M0_M1 &lt;- 
   rbind(M0      = myPLN_M0$criteria,
         M1_year = myPLN_M1_year$criteria,
@@ -567,22 +568,22 @@ criteria_M0_M1 %&gt;% kable()</code></pre>
 </div>
 <div id="effet-îlot" class="section level2">
 <h2>Effet îlot</h2>
-<p>On peut extraire les coefficients de régression de l’îlot sur l’abondance de chacune des espèces avec <code>coefficients()</code> et les représenter avec <code>corrplot()</code>. Le graphe suggère des coefficients élevés (et donc une surabondance) pour certaines espèces dans certains sites: LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l’îlot AEI et TSYM (un maquereau) pour l’îlot AMI.</p>
+<p>On peut extraire les coefficients de régression de l’îlot sur l’abondance de chacune des espèces avec <code>coefficients()</code> et les représenter avec <code>corrplot()</code>. Le graphe suggère des coefficients élevés (et donc une surabondance) pour certaines espèces dans certains sites : LAMSPP (une algue), PTECALAD (une algue), MEGSPP (un escargot de mer), SJAP (un maquereau) pour l’îlot AEI et TSYM (un maquereau) pour l’îlot AMI.</p>
 <pre class="r"><code>myPLN_M1_site %&gt;% 
   coefficients() %&gt;% t() %&gt;% round(1) %&gt;% 
   corrplot(is.corr = FALSE, method = &#39;color&#39;, tl.cex = .5, cl.pos = &quot;n&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-4-1.png" width="960" /></p>
+<p><img src="chiquet_files/figure-html/M1_site-1.png" width="960" /></p>
 <p>On note ces espèces pour pouvoir les mettre en avant dans la suite des analyses.</p>
 <pre class="r"><code>flagged_species &lt;- c(&quot;LAMSPP&quot;, &quot;PTECALAD&quot;, &quot;MEGSPP&quot;, &quot;SJAP&quot;, &quot;TSYM&quot;)</code></pre>
 </div>
 <div id="effet-année" class="section level2">
 <h2>Effet année</h2>
-<p>Le même travail sur l’effet de l’année suggère que que les années se suivent et se ressemblent à partir de 2002: utiliser un effet par année n’est pas très parcimonieux.</p>
+<p>Le même travail sur l’effet de l’année suggère que les années se suivent et se ressemblent à partir de 2002 : utiliser un effet par année n’est pas très parcimonieux.</p>
 <pre class="r"><code>myPLN_M1_year %&gt;% 
   coefficients() %&gt;% t() %&gt;% round(1) %&gt;% 
   corrplot(is.corr = FALSE, method = &#39;color&#39;, tl.cex = .5, cl.pos = &quot;n&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-6-1.png" width="960" /></p>
-<p>L’information portée par les année est en très similaire, un arbre de clustering des coefficients de régression correspondant à chaque année suggère de regrouper les années antérieures à à 2001 d’un côté et les années postérieures de l’autre.</p>
+<p><img src="chiquet_files/figure-html/M1_year-1.png" width="960" /></p>
+<p>L’information portée par les années est très similaire, un arbre de clustering des coefficients de régression correspondant à chaque année suggère de regrouper les années antérieures à 2001 d’un côté et les années postérieures de l’autre.</p>
 <pre class="r"><code>year_hclust &lt;- myPLN_M1_year %&gt;% 
   coefficients() %&gt;% t() %&gt;% dist() %&gt;% hclust(method = &#39;ward.D2&#39;)
 plot(year_hclust)</code></pre>
@@ -660,14 +661,14 @@ plot(year_hclust)</code></pre>
 </div>
 <div id="réduction-de-dimension" class="section level1">
 <h1>Réduction de dimension</h1>
-<p>Le modèle PLN standard s’appuie sur un espace latent de dimension 66 (une dimension par espèce). La variante PLN-PCA cherche une modèle plus parcimonieuse, basée sur un espace latent de plus faible dimension.</p>
+<p>Le modèle PLN standard s’appuie sur un espace latent de dimension 66 (une dimension par espèce). La variante PLN-PCA cherche un modèle plus parcimonieux, basé sur un espace latent de plus faible dimension.</p>
 <div id="modèle-sans-covariable" class="section level2">
 <h2>Modèle sans covariable</h2>
 <p>Nous commençons par une ACP standard, c’est à dire sans covariables, en laissant l’algorithme ajuster tous les modèles allant de 1 à 20 dimensions latentes (<code>ranks = 1:20</code>).</p>
 <pre class="r"><code>myPCA_m0 &lt;- PLNmodels::PLNPCA(formula = Abundance ~ 1 + offset(log(Offset)),
                               data = marinet, 
                               ranks = 1:20)</code></pre>
-<p>On charge la famille de modèles précalculée.</p>
+<p>On charge la famille de modèles précalculés.</p>
 <pre class="r"><code>myPCA_m0 &lt;- readr::read_rds(&quot;dat/myPCA_m0.rds&quot;)</code></pre>
 <pre class="r"><code>myPCA_m0</code></pre>
 <pre><code>## --------------------------------------------------------
@@ -678,7 +679,7 @@ plot(year_hclust)</code></pre>
 ##  - Ranks considered: from 1 to 20
 ##  - Best model (greater BIC): rank = 19 - R2 = 0.98
 ##  - Best model (greater ICL): rank = 18 - R2 = 0.98</code></pre>
-<p>Parmi les 20 modèles ajustées, les critères de sélection de modèles suggèrent 18 (ICL) ou 19 (BIC) dimensions latentes. Au vu des courbes, une méthode de type “heuristique de pente” en aurait peut-être sélectionné une dizaine.</p>
+<p>Parmi les 20 modèles ajustés, les critères de sélection de modèles suggèrent 18 (ICL) ou 19 (BIC) dimensions latentes. Au vu des courbes, une méthode de type “heuristique de pente” en aurait peut-être sélectionné une dizaine.</p>
 <pre class="r"><code>plot(myPCA_m0)</code></pre>
 <p><img src="chiquet_files/figure-html/pca%20m0%20criteria-1.png" width="672" /></p>
 <p>Explorons le modèle à 19 dimensions latentes (optimale au sens du critère BIC) pour vérifier si les covariables précédemment identifiées sont structurantes dans l’espace latent.</p>
@@ -688,10 +689,10 @@ plot(year_hclust)</code></pre>
                   val  = 100 * model_m0$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
     labs(x = &quot;Axis&quot;, y = &quot;Variance (%)&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m0%20scree-1.png" width="672" /></p>
 <div id="exploration-de-la-structure-latente" class="section level3 tabset">
 <h3>Exploration de la structure latente</h3>
-<p>On s’intéresse à la localisation des échantillons dans le premier plan factoriel (axes 1 et 2 du modèle à 19 dimensions): la structure latente reflète t-elle les covariables précédemment identifiées? La réponse est oui dans les deux cas mais avec un effet bien plus fort pour l’îlot que pour la période</p>
+<p>On s’intéresse à la localisation des échantillons dans le premier plan factoriel (axes 1 et 2 du modèle à 19 dimensions) : la structure latente reflète t-elle les covariables précédemment identifiées ? La réponse est oui dans les deux cas mais avec un effet bien plus fort pour l’îlot que pour la période.</p>
 <div id="effet-période" class="section level4">
 <h4>Effet période</h4>
 <pre class="r"><code>plot(model_m0, axes = c(1, 2), map = &quot;individual&quot;, ind_cols = marinet$period)</code></pre>
@@ -714,7 +715,7 @@ plot(year_hclust)</code></pre>
     scale_color_manual(values = c(&quot;#f1a34088&quot;, &quot;#998ec3&quot;)) + 
     coord_equal() + 
     ggtitle(NULL)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m0%20circel-1.png" width="672" /></p>
 </div>
 </div>
 <div id="correction-de-leffet-îlot" class="section level2">
@@ -740,12 +741,12 @@ plot(year_hclust)</code></pre>
                   val  = 100 * model_m1$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
     labs(x = &quot;Axis&quot;, y = &quot;Variance (%)&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m1%20scree-1.png" width="672" /></p>
 <div id="exploration-de-la-structure" class="section level3 tabset">
 <h3>Exploration de la structure</h3>
 <div id="effet-période-1" class="section level4">
 <h4>Effet période</h4>
-<p>L’effet période est plus marquée que dans l’analyse précédente.</p>
+<p>L’effet période est plus marqué que dans l’analyse précédente.</p>
 <pre class="r"><code>plot(model_m1, axes = c(1, 2), map = &quot;individual&quot;, ind_cols = marinet$period)</code></pre>
 <p><img src="chiquet_files/figure-html/m1_period-1.png" width="672" /></p>
 </div>
@@ -771,7 +772,7 @@ plot(year_hclust)</code></pre>
     scale_color_manual(values = c(&quot;#f1a34088&quot;, &quot;#998ec3&quot;)) + 
     coord_equal() + 
     ggtitle(NULL)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m1%20circle-1.png" width="672" /></p>
 </div>
 <div id="focus-sur-lilôt-aei" class="section level3">
 <h3>Focus sur l’ilôt AEI</h3>
@@ -785,7 +786,7 @@ p +
                        labels = c(&quot;Avant 2001&quot;, &quot;Après 2001&quot;)) + 
   ggtitle(&quot;Premier plan factoriel, îlot AEI&quot;) + 
   theme(legend.position = c(0.05, 0.95), legend.justification = c(0, 1))</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/m1%20AEI-1.png" width="672" /></p>
 </div>
 </div>
 <div id="modèle-complet" class="section level2">
@@ -812,7 +813,7 @@ p +
                   val  = 100 * model_m2$percent_var), 
          aes(x = rank, y = val)) + geom_col() + 
     labs(x = &quot;Axis&quot;, y = &quot;Variance (%)&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m2%20scree-1.png" width="672" /></p>
 <div id="exploration-de-la-structure-1" class="section level3 tabset">
 <h3>Exploration de la structure</h3>
 <div id="effet-période-2" class="section level4">
@@ -837,26 +838,26 @@ p +
     scale_color_manual(values = c(&quot;#f1a34088&quot;, &quot;#998ec3&quot;)) + 
     coord_equal() + 
     ggtitle(NULL)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/pca%20m2%20circle-1.png" width="672" /></p>
 </div>
 </div>
 <div id="conclusion" class="section level2">
 <h2>Conclusion</h2>
-<p>La réduction de dimension fait apparaître:</p>
+<p>La réduction de dimension fait apparaître :</p>
 <ul>
-<li>une forte structuration Est-Ouest des communautés, avec un effet principal îlot et un effet secondaire côté (au sein de chaque îlot)</li>
-<li>un petit effet période (pour l’îlot AMI)</li>
+<li>une forte structuration Est-Ouest des communautés, avec un effet principal îlot et un effet secondaire côté (au sein de chaque îlot),</li>
+<li>un petit effet période (pour l’îlot AMI).</li>
 </ul>
-<p>Inclure les covariables dans le modèle permet de:</p>
+<p>Inclure les covariables dans le modèle permet de :</p>
 <ul>
-<li>réduire la dimension de l’espace latent et de neutraliser (dans une certaine mesure) l’impact de ces covariables sur la structure des échantillons dans l’espace latent.</li>
-<li>mieux répartir les espèces sur l’hypersphère des corrélations</li>
+<li>réduire la dimension de l’espace latent et de neutraliser (dans une certaine mesure) l’impact de ces covariables sur la structure des échantillons dans l’espace latent,</li>
+<li>mieux répartir les espèces sur l’hypersphère des corrélations.</li>
 </ul>
 </div>
 </div>
 <div id="inférence-de-réseaux" class="section level1">
 <h1>Inférence de réseaux</h1>
-<p>La variante PLNnetwork permet d’estimer les interactions entre espèces. Une originalité de la méthode est de contrôler pour les covariables pour distinguer les préférences partagées d’habitat de vraies interactions. Nous avons déjà identifié les effets îlot et année/période comme structurant mais nous allons considérer ici toutes les modèles possibles allant du modèle sans covariable (<code>Abundance ~ 1 + offset(log(Offset))</code>) au modèle complet (<code>Abundance ~ site + side + period + zone + offset(log(Offset))</code>) en couvrant les <span class="math inline">\(2^4\)</span> modèles possibles.</p>
+<p>La variante PLNnetwork permet d’estimer les interactions entre espèces. Une originalité de la méthode est de contrôler pour les covariables pour distinguer les préférences partagées d’habitat de vraies interactions. Nous avons déjà identifié les effets îlot et année/période comme structurant mais nous allons considérer ici tous les modèles possibles allant du modèle sans covariable au modèle complet : c’est à dire de <code>Abundance ~ 1 + offset(log(Offset))</code> à <code>Abundance ~ site + side + period + zone + offset(log(Offset))</code>) en couvrant les <span class="math inline">\(2^4\)</span> modèles possibles.</p>
 <div id="ajustement-de-modèles" class="section level2">
 <h2>Ajustement de modèles</h2>
 <p>On commence par définir notre ensemble de modèles.</p>
@@ -899,13 +900,13 @@ for (formula in models_formula) {
   stability_selection(network, force = TRUE, subsamples = subSamples)
   PLNnet[formula] &lt;- network
 }</code></pre>
-<p>On charge les familles de modèles précalculées.</p>
+<p>On charge les familles de modèles précalculés.</p>
 <pre class="r"><code>PLNnet &lt;- readRDS(&#39;dat/PLNnet.rds&#39;)</code></pre>
-<p><strong>Note</strong> Si on ne cherche pas à comparer comme ici des modèles avec différents de covariables (par exemple parce qu’on sait quelles covariables inclure dans le modèle), il n’est pas nécessaire de spécifier la grille de pénalités et l’ensemble des sous-échantillons <em>à la main</em>, les fonctions <code>PLNnetwork()</code> et <code>stability_selection()</code> les calculeront automatiquement. On le fait ici uniquement pour faciliter la comparaison entre modèles différents.</p>
+<p><strong>Note</strong> Si on ne cherche pas à comparer comme ici des modèles avec différentes covariables (par exemple parce qu’on sait quelles covariables inclure dans le modèle), il n’est pas nécessaire de spécifier la grille de pénalités et l’ensemble des sous-échantillons <em>à la main</em>, les fonctions <code>PLNnetwork()</code> et <code>stability_selection()</code> les calculeront automatiquement. On le fait ici uniquement pour faciliter la comparaison entre modèles différents.</p>
 </div>
 <div id="comparaison-de-modèles" class="section level2">
 <h2>Comparaison de modèles</h2>
-<p>Une fois l’ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes: modèle sans covariables (<code>cst</code>), modèle complet (<code>full</code>), modèle incluant l’effet année (<code>year</code>), modèle n’incluant pas l’effet année (<code>other</code>).</p>
+<p>Une fois l’ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes : modèle sans covariables (<code>cst</code>), modèle complet (<code>full</code>), modèle incluant l’effet année (<code>year</code>), modèle n’incluant pas l’effet année (<code>other</code>).</p>
 <pre class="r"><code>models &lt;- tibble(
   model   = models_formula, 
   network = PLNnet, 
@@ -917,11 +918,13 @@ for (formula in models_formula) {
     TRUE                 ~ &quot;other&quot;
   )
 )</code></pre>
-<p>On compile ensuite pour chaque modèle et chaque pénalité <span class="math inline">\(\lambda\)</span>, différents descripteurs du réseau: densité, critère BIC, vraisemblance variationnelle, etc.</p>
+<p>On compile ensuite pour chaque modèle et chaque pénalité <span class="math inline">\(\lambda\)</span>, différents descripteurs du réseau : densité, critère BIC, vraisemblance variationnelle, etc.</p>
 <pre class="r"><code>plotdata &lt;- models %&gt;% 
   mutate(criteria = map(network, &quot;criteria&quot;)) %&gt;% 
   select(-network) %&gt;% 
   unnest(cols = criteria)</code></pre>
+<p>Cette opération nécessitant l’accès à l’objet volumineux <code>PLNnet</code> (1600 réseaux), l’objet <code>plotdata</code> est directement fourni dans l’archive allégée.</p>
+<pre class="r"><code>plotdata &lt;- readRDS(&#39;dat/plotdata.rds&#39;)</code></pre>
 <p>On peut ensuite représenter la densité en fonction de la pénalité <span class="math inline">\(\lambda\)</span> pour chaque modèle (et vérifier que des grandes pénalités conduisent à des réseaux moins denses).</p>
 <pre class="r"><code>manual_palette &lt;- c(&quot;cst&quot; = &quot;black&quot;, &quot;full&quot; = &quot;red&quot;, 
                     &quot;other&quot; = &quot;green&quot;, &quot;year&quot; = &quot;blue&quot;)
@@ -931,7 +934,7 @@ ggplot(plotdata, aes(x = param, y = density, group = model, color = group)) +
   scale_color_manual(values = manual_palette) +
   labs(x = &quot;lambda&quot;) + 
   theme(legend.position = c(0.95, 0.95), legend.justification = c(1, 1))</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-28-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/graph_density-1.png" width="672" /></p>
 <p>On peut faire de même avec le BIC et la log vraisemblance variationnelle et singulariser la pénalité <span class="math inline">\(\lambda\)</span> correspondant au modèle possédant le meilleur BIC, toutes familles confondues.</p>
 <pre class="r"><code>ggplot(plotdata, aes(x = param, group = model, color = group)) + 
   geom_line(aes(y = BIC, linetype = &quot;BIC&quot;)) +
@@ -940,11 +943,11 @@ ggplot(plotdata, aes(x = param, y = density, group = model, color = group)) +
   scale_color_manual(values = manual_palette) +
   scale_x_log10() + 
   labs(x = &quot;lambda&quot;)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-29-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/graph_criteria-1.png" width="672" /></p>
 </div>
 <div id="extraction-du-meilleur-réseau." class="section level2">
 <h2>Extraction du meilleur réseau.</h2>
-<p>On extrait le meilleur modèle (à comprendre comme ensemble de covariables) au sens du critère BIC.</p>
+<p>On montre ici comment extraire le meilleur modèle (à comprendre comme ensemble de covariables, parmi les 16 possibles) au sens du critère BIC.</p>
 <pre class="r"><code>best_model &lt;- with(plotdata, model[which.max(BIC)])
 best_model</code></pre>
 <pre><code>## [1] &quot;Abundance ~ year + site + offset(log(Offset))&quot;</code></pre>
@@ -979,26 +982,22 @@ best_network</code></pre>
 ##     $EBIC, $density, $penalty 
 ## * Additional S3 methods for network
 ##     plot.PLNnetworkfit()</code></pre>
+<p>Ces opérations nécessitant l’accès à l’objet volumineux <code>PLNnet</code>, l’objet <code>best_network</code> est directement fourni dans l’archive allégée.</p>
+<pre class="r"><code>best_network &lt;- readRDS(&#39;dat/best_network.rds&#39;)</code></pre>
 </div>
 <div id="robustesse-des-arêtes" class="section level2">
 <h2>Robustesse des arêtes</h2>
-<p>La procédure stars fournit un score de robustesse pour chaque arête du réseau: le pourcentage de sous-échantillons dans laquelle l’arête est sélectionné.</p>
+<p>La procédure stars fournit un score de robustesse pour chaque arête du réseau : le pourcentage de sous-échantillons dans laquelle l’arête est sélectionnée.</p>
 <pre class="r"><code>## Pénalité du meilleur réseau
 best_penalty &lt;- best_network$penalty
 stability_scores &lt;- networks$stability_path %&gt;% 
-  filter(round(Penalty - best_penalty, digits = 6) == 0)
-head(stability_scores)</code></pre>
-<pre><code>##            Edge  Penalty Prob  Node1  Node2
-## 1   AHOL|ANTSOL 0.146903 0.03   AHOL ANTSOL
-## 2   AHOL|APLCAL 0.146903 0.02   AHOL APLCAL
-## 3 ANTSOL|APLCAL 0.146903 0.44 ANTSOL APLCAL
-## 4     AHOL|ATHE 0.146903 1.00   AHOL   ATHE
-## 5   ANTSOL|ATHE 0.146903 0.08 ANTSOL   ATHE
-## 6   APLCAL|ATHE 0.146903 1.00 APLCAL   ATHE</code></pre>
+  filter(round(Penalty - best_penalty, digits = 6) == 0)</code></pre>
+<p>Cette opération nécessitant l’accès à l’objet volumineux <code>PLNnet</code>, dont <code>networks</code> est extrait, l’objet <code>stability_scores</code> est directement fourni dans l’archive allégée.</p>
+<pre class="r"><code>stability_scores &lt;- readRDS(&quot;dat/stability_scores.rds&quot;)</code></pre>
 <p>Ces probabilités de sélection sont proches de 0 ou de 1 pour la majorité des arêtes, indiquant que les arêtes sélectionnées sont robustes.</p>
 <pre class="r"><code>hist(stability_scores$Prob, breaks = 50, 
      xlab = &quot;Probabilité de sélection dans les sous échantillons&quot;, main = NA)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-34-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/stab_scores_hist-1.png" width="672" /></p>
 <p>On peut comparer cette probabilité de sélection avec le fait d’être présent / absent dans le réseau final (choisi par le critère BIC). De façon cohérente et rassurante, la probabilité de sélection dans les sous-échantillons est faible pour les arêtes absentes et forte pour les arêtes présentes dans le graphe.</p>
 <pre class="r"><code>is_present &lt;- function(x, y) {
   network &lt;- best_network$latent_network()
@@ -1008,18 +1007,18 @@ head(stability_scores)</code></pre>
 }
 stability_scores &lt;- stability_scores %&gt;% mutate(in_graph = is_present(Node1, Node2))
 ggplot(stability_scores, aes(x = in_graph, y = Prob)) + geom_boxplot()</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-35-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/stab_scores_boxplot-1.png" width="672" /></p>
 </div>
 <div id="représentation-du-réseau" class="section level2">
 <h2>Représentation du réseau</h2>
-<p>Une fois notre réseau reconstruit, on peut répresenter le représenter.</p>
+<p>Une fois notre réseau reconstruit, on peut le représenter.</p>
 <pre class="r"><code>best_network$plot_network()</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-36-1.png" width="672" /></p>
+<p><img src="chiquet_files/figure-html/best_network-1.png" width="672" /></p>
 <p>On peut également s’intéresser à la distribution des degrés dans le réseau. Le <code>- 1</code> permet d’exclure les auto-arêtes, qui correspondent aux coefficients diagonaux de la matrice <span class="math inline">\(\boldsymbol{\Omega}\)</span> (voire chapitre pour les notations).</p>
 <pre class="r"><code>degrees &lt;- rowSums(as(best_network$latent_network(), &quot;matrix&quot;) != 0) - 1
 hist(degrees, xlab = &quot;Degré&quot;, main = NA)</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-37-1.png" width="672" /></p>
-<p>Enfin, on peut aussi réorganiser la matrice d’adjacence du réseau en séparant les espèces en fonction de leur type: algue, poisson ou invertébré.</p>
+<p><img src="chiquet_files/figure-html/degree_dist-1.png" width="672" /></p>
+<p>Enfin, on peut aussi réorganiser la matrice d’adjacence du réseau en séparant les espèces en fonction de leur type : algue, poisson ou invertébré.</p>
 <pre class="r"><code>species_description &lt;- tribble(
        ~species,          ~type,
          &quot;AHOL&quot;,         &quot;fish&quot;,
@@ -1110,11 +1109,11 @@ ggplot(graph_data, aes(x = Node1, y = Node2, fill = Edge_value)) +
   scale_fill_gradient2(na.value = &quot;white&quot;, name = &quot;Correlation partielle&quot;) + 
   facet_grid(type_node2 ~ type_node1, scales = &quot;free&quot;, space = &quot;free&quot;) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-39-1.png" width="960" /></p>
+<p><img src="chiquet_files/figure-html/adj_matrix_reordered-1.png" width="960" /></p>
 </div>
 <div id="focus-sur-un-sous-réseau" class="section level2">
 <h2>Focus sur un sous-réseau</h2>
-<p>Pour finir, on se focalise sur le sous-réseau induit par deux espèces d’oursins: l’espèce invasive d’oursin violet STRPURAD et l’espèce native et comestible d’ourson rouge STRFRAAD. On commence par extraire le sous-graphe formé des voisinages de ces deux espèces.</p>
+<p>Pour finir, on se focalise sur le sous-réseau induit par deux espèces d’oursins : l’espèce invasive d’oursin violet STRPURAD et l’espèce native et comestible d’oursin rouge STRFRAAD. On commence par extraire le sous-graphe formé des voisinages de ces deux espèces.</p>
 <pre class="r"><code>## Export du graphe au format tidygraph
 subgraph &lt;- best_network$latent_network() %&gt;% 
   graph_from_adjacency_matrix(mode = &quot;undirected&quot;, weighted = TRUE, diag = FALSE) %&gt;% 
@@ -1136,11 +1135,11 @@ subgraph &lt;- best_network$latent_network() %&gt;%
   scale_fill_discrete(name = &quot;Type d&#39;espèce&quot;) + 
   scale_edge_width(name = &quot;Intensité de la corrélation partielle&quot;) + 
   scale_edge_color_discrete(name = &quot;Signe de la corrélation partielle&quot;, labels = c(&#39;&lt;0&#39;, &#39;&gt;0&#39;))</code></pre>
-<p><img src="chiquet_files/figure-html/unnamed-chunk-41-1.png" width="960" /></p>
+<p><img src="chiquet_files/figure-html/best_network_subgraph-1.png" width="960" /></p>
 </div>
 </div>
-<div id="information-de-session" class="section level1">
-<h1>Information de session</h1>
+<div id="informations-de-session" class="section level1">
+<h1>Informations de session</h1>
 <pre class="r"><code>sessionInfo()</code></pre>
 <pre><code>## R version 4.0.3 (2020-10-10)
 ## Platform: x86_64-pc-linux-gnu (64-bit)
@@ -1173,9 +1172,9 @@ subgraph &lt;- best_network$latent_network() %&gt;%
 ##  [5] assertthat_0.2.1   digest_0.6.27      ggforce_0.3.2      R6_2.5.0          
 ##  [9] cellranger_1.1.0   backports_1.2.1    reprex_0.3.0       evaluate_0.14     
 ## [13] highr_0.8          httr_1.4.2         pillar_1.4.7       rlang_0.4.9       
-## [17] readxl_1.3.1       rstudioapi_0.13    nloptr_1.2.2.2     Matrix_1.3-0      
+## [17] readxl_1.3.1       rstudioapi_0.13    nloptr_1.2.2.2     Matrix_1.3-2      
 ## [21] rmarkdown_2.6      labeling_0.4.2     polyclip_1.10-0    munsell_0.5.0     
-## [25] broom_0.7.3        compiler_4.0.3     modelr_0.1.8       xfun_0.19         
+## [25] broom_0.7.3        compiler_4.0.3     modelr_0.1.8       xfun_0.20         
 ## [29] pkgconfig_2.0.3    htmltools_0.5.0    glassoFast_1.0     tidyselect_1.1.0  
 ## [33] gridExtra_2.3      graphlayouts_0.7.1 viridisLite_0.3.0  fansi_0.4.1       
 ## [37] crayon_1.3.4       dbplyr_2.0.0       withr_2.3.0        MASS_7.3-53       
