@@ -14,7 +14,9 @@ knitr::opts_chunk$set(echo  = TRUE)
 
 Ce document constitue une présentation des codes et analyses effectuées dans le chapitre *Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance*. Il est divisée en sections qui reprennent séquentiellement les analyses du chapitre. 
 
-Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici](https://mycore.core-cloud.net/index.php/s/2hP8EQm4TxwErPF) et doit être extraite dans le même dossier que le fichier `.Rmd`. 
+Certaines étapes ci-dessous peuvent être longues en temps de calcul (quelques heures pour la dernière partie de reconstruction de réseaux). Par conséquent, on fournit avec ce script une archive de fichiers `.rds` permettant de charger le résultat des analyses chronophages. L'archive est disponible [ici](https://mycore.core-cloud.net/index.php/s/2hP8EQm4TxwErPF) sous sa forme complète (~620 Mo, tous les objets générés dans cette analyse) et [ici](https://filesender.renater.fr/?s=download&token=c52add9c-890a-4e30-b5ea-e275ede951a9) sous forme *allégée* (~22 Mo, uniquement les données nécessaires à la reproduction des graphiques figurant dans cette vignette) et doit être extraite dans le même dossier que le fichier `.Rmd`. 
+
+Le Rmd contient tous les codes permettant de faire tourner les analyses et de construire tous les objets contenus dans les archives complète et allégée. Il ne nécessite cependant que cette dernière pour générer le document html final.  
 
 # Étapes préliminaires
 
@@ -487,7 +489,7 @@ for (formula in models_formula) {
 
 On charge les familles de modèles précalculés. 
 
-```{r}
+```{r eval = FALSE}
 PLNnet <- readRDS('dat/PLNnet.rds')
 ```
 
@@ -497,7 +499,7 @@ PLNnet <- readRDS('dat/PLNnet.rds')
 
 Une fois l'ajustement fait, on classe chaque modèle dans une des 4 catégories suivantes : modèle sans covariables (`cst`), modèle complet (`full`), modèle incluant l'effet année (`year`), modèle n'incluant pas l'effet année (`other`). 
 
-```{r}
+```{r eval = FALSE}
 models <- tibble(
   model   = models_formula, 
   network = PLNnet, 
@@ -513,11 +515,17 @@ models <- tibble(
 
 On compile ensuite pour chaque modèle et chaque pénalité $\lambda$, différents descripteurs du réseau : densité, critère BIC, vraisemblance variationnelle, etc. 
 
-```{r}
+```{r eval = FALSE}
 plotdata <- models %>% 
   mutate(criteria = map(network, "criteria")) %>% 
   select(-network) %>% 
   unnest(cols = criteria)
+```
+
+Cette opération nécessitant l'accès à l'objet volumineux `PLNnet` (1600 réseaux), l'objet `plotdata` est directement fourni dans l'archive allégée. 
+
+```{r eval = TRUE}
+plotdata <- readRDS('dat/plotdata.rds')
 ```
 
 On peut ensuite représenter la densité en fonction de la pénalité $\lambda$ pour chaque modèle (et vérifier que des grandes pénalités conduisent à des réseaux moins denses). 
@@ -547,37 +555,83 @@ ggplot(plotdata, aes(x = param, group = model, color = group)) +
 
 ## Extraction du meilleur réseau. 
 
-On extrait le meilleur modèle (à comprendre comme ensemble de covariables) au sens du critère BIC. 
+On montre ici comment extraire le meilleur modèle (à comprendre comme ensemble de covariables, parmi les 16 possibles) au sens du critère BIC. 
 
-```{r}
+```{r eval = FALSE}
 best_model <- with(plotdata, model[which.max(BIC)])
 best_model
 ```
 
+```
+## [1] "Abundance ~ year + site + offset(log(Offset))"
+```
+
 Puis on extrait la famille de réseaux correspondante (avec un réseau par pénalité). 
 
-```{r}
+```{r eval = FALSE}
 networks <- PLNnet[[best_model]]
 networks
 ```
 
+```
+## --------------------------------------------------------
+## COLLECTION OF 100 POISSON LOGNORMAL MODELS
+## --------------------------------------------------------
+##  Task: Network Inference 
+## ========================================================
+##  - 100 penalties considered: from 0.01 to 20 
+##  - Best model (greater BIC): lambda = 0.147 
+##  - Best model (greater EBIC): lambda = 0.147 
+##  - Best model (regarding StARS): lambda = 0.682
+```
+
 Avant d'en extraire le meilleur réseau (correspondant à la pénalité optimale). 
 
-```{r}
+```{r eval = FALSE}
 best_network <- networks$getBestModel("BIC")
 best_network
+```
+
+```
+## Poisson Lognormal with sparse inverse covariance (penalty = 0.147)
+## ==================================================================
+##  nb_param   loglik       BIC       ICL R_squared n_edges      EBIC pen_loglik
+##      1045 -21759.1 -24348.52 -30609.03      0.99     847 -24742.04  -21778.17
+##  density
+##    0.389
+## ==================================================================
+## * Useful fields
+##     $model_par, $latent, $var_par, $optim_par
+##     $loglik, $BIC, $ICL, $loglik_vec, $nb_param, $criteria
+## * Useful S3 methods
+##     print(), coef(), sigma(), vcov(), fitted(), predict(), standard_error()
+## * Additional fields for sparse network
+##     $EBIC, $density, $penalty 
+## * Additional S3 methods for network
+##     plot.PLNnetworkfit()
+```
+
+Ces opérations nécessitant l'accès à l'objet volumineux `PLNnet`, l'objet `best_network` est directement fourni dans l'archive allégée. 
+
+```{r eval = TRUE}
+best_network <- readRDS('dat/best_network.rds')
 ```
 
 ## Robustesse des arêtes
 
 La procédure stars fournit un score de robustesse pour chaque arête du réseau : le pourcentage de sous-échantillons dans laquelle l'arête est sélectionnée. 
 
-```{r}
+```{r eval = FALSE}
 ## Pénalité du meilleur réseau
 best_penalty <- best_network$penalty
 stability_scores <- networks$stability_path %>% 
   filter(round(Penalty - best_penalty, digits = 6) == 0)
-head(stability_scores)
+```
+
+Cette opération nécessitant l'accès à l'objet volumineux `PLNnet`, dont `networks` est extrait, l'objet `stability_scores` est directement fourni dans l'archive allégée. 
+
+```{r}
+stability_scores <- readRDS("dat/stability_scores.rds")
 ```
 
 Ces probabilités de sélection sont proches de 0 ou de 1 pour la majorité des arêtes, indiquant que les arêtes sélectionnées sont robustes. 
