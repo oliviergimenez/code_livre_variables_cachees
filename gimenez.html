@@ -9,7 +9,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="O. Gimenez, J. Louvrier, N. Santostasi" />
+<meta name="author" content="O. Gimenez, J. Louvrier, V. Lauret, N. Santostasi" />
 
 
 <title>Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés</title>
@@ -385,7 +385,7 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés</h1>
-<h4 class="author">O. Gimenez, J. Louvrier, N. Santostasi</h4>
+<h4 class="author">O. Gimenez, J. Louvrier, V. Lauret, N. Santostasi</h4>
 
 </div>
 
@@ -513,7 +513,7 @@ est</code></pre>
 <pre class="r"><code>library(HMM)</code></pre>
 <p>On source la fonction qui applique Viterbi et calcule la prévalence.</p>
 <pre class="r"><code>source(&#39;code/viterbi_phispdelta.R&#39;)</code></pre>
-<p>On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle de loups. Le complémentaire donne la prévalence d’hybrides.</p>
+<p>On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle d’hybrides. Le complémentaire donne la prévalence de loups.</p>
 <pre class="r"><code>prev_obs &lt;- viterbi_phispdelta(data = wolf_data,
                    fc = fc,
                    k = k,
@@ -523,8 +523,8 @@ est</code></pre>
                    p = x[4],
                    delta = x[5],
                    n.states = 3)
-prev_obs</code></pre>
-<pre><code>## [1] 0.7272727 0.6666667 0.8000000 0.8000000 0.8181818</code></pre>
+1 - prev_obs</code></pre>
+<pre><code>## [1] 0.2727273 0.3333333 0.2000000 0.2000000 0.1818182</code></pre>
 <p>On peut prendre en compte l’incertude sur l’estimation des paramètres du modèle de capture-recapture. Pour ce faire, on utilise un bootstrap non-paramétrique.</p>
 <p>On définit d’abord le nombre d’échantillons boostrap.</p>
 <pre class="r"><code>nb_bootstrap &lt;- 100</code></pre>
@@ -569,18 +569,18 @@ for (jj in 1:nb_bootstrap){
       delta = x[5],
       n.states = 3)
 }</code></pre>
-<p>On calcule un intervalle de confiance pour la prévalence de loups.</p>
-<pre class="r"><code>res &lt;- rbind(prev_obs, 
-             apply(phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
+<p>On calcule un intervalle de confiance pour la prévalence d’hybrides.</p>
+<pre class="r"><code>res &lt;- rbind(1-prev_obs, 
+             apply(1-phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
 colnames(res) &lt;- paste0(&quot;Occ capture &quot;, 1:k)
 row.names(res)[1] &lt;- &quot;prév estimée&quot;
 round(t(res), 2)</code></pre>
 <pre><code>##               prév estimée 2.5% 97.5%
-## Occ capture 1         0.73 0.39  0.91
-## Occ capture 2         0.67 0.39  0.90
-## Occ capture 3         0.80 0.50  1.00
-## Occ capture 4         0.80 0.50  1.00
-## Occ capture 5         0.82 0.50  1.00</code></pre>
+## Occ capture 1         0.27 0.09  0.61
+## Occ capture 2         0.33 0.10  0.61
+## Occ capture 3         0.20 0.00  0.50
+## Occ capture 4         0.20 0.00  0.50
+## Occ capture 5         0.18 0.00  0.50</code></pre>
 </div>
 </div>
 <div id="cas-détude-distribution-estimation-de-lhétérogénéité-de-détection-dune-espèce" class="section level2">

@@ -1,6 +1,6 @@
 ---
 title: "Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés"
-author: "O. Gimenez, J. Louvrier, N. Santostasi"
+author: "O. Gimenez, J. Louvrier, V. Lauret, N. Santostasi"
 output: 
     html_document:
         toc: TRUE
@@ -114,7 +114,7 @@ On source la fonction qui applique Viterbi et calcule la prévalence.
 source('code/viterbi_phispdelta.R')
 ```
 
-On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle de loups. Le complémentaire donne la prévalence d'hybrides.
+On calcule la prévalence par occasion de capture. La prévalence donnée ici est celle d'hybrides. Le complémentaire donne la prévalence de loups. 
 ```{r}
 prev_obs <- viterbi_phispdelta(data = wolf_data,
                    fc = fc,
@@ -125,7 +125,7 @@ prev_obs <- viterbi_phispdelta(data = wolf_data,
                    p = x[4],
                    delta = x[5],
                    n.states = 3)
-prev_obs
+1 - prev_obs
 ```
 
 On peut prendre en compte l'incertude sur l'estimation des paramètres du modèle de capture-recapture. Pour ce faire, on utilise un bootstrap non-paramétrique. 
@@ -179,10 +179,10 @@ for (jj in 1:nb_bootstrap){
 }
 ```
 
-On calcule un intervalle de confiance pour la prévalence de loups.
+On calcule un intervalle de confiance pour la prévalence d'hybrides.
 ```{r}
-res <- rbind(prev_obs, 
-             apply(phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
+res <- rbind(1-prev_obs, 
+             apply(1-phispipdelta_pseudo, 2, quantile, probs = c(2.5, 97.5)/100))
 colnames(res) <- paste0("Occ capture ", 1:k)
 row.names(res)[1] <- "prév estimée"
 round(t(res), 2)
