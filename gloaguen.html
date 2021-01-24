@@ -439,7 +439,7 @@ traj_plot &lt;- ggmap::ggmap(zone_map) +
         axis.title = element_blank())</code></pre>
 <p>On visualise.</p>
 <pre class="r"><code>gridExtra::grid.arrange(world_plot, traj_plot, nrow = 1)</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
 <p>Projection.</p>
 <pre class="r"><code>fou_dta_utm &lt;- fou_dta %&gt;% 
   st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;)) %&gt;% 
@@ -563,7 +563,7 @@ traj_plot &lt;- ggmap::ggmap(zone_map) +
   coord_cartesian(ylim = c(955, 956) * 1e4, xlim = c(575, 580) * 1e3) +
   theme(axis.text = element_blank(), axis.ticks = element_blank(),
         axis.title = element_blank())</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
 <p>Utilisation du package moveHMM.</p>
 <p>Metric Step Length/ Turning angle is implemented is the moveHMM package.</p>
 <pre class="r"><code>moveHMM_data &lt;- fou_dta_utm_smoothed %&gt;% 
@@ -667,7 +667,7 @@ ICL(moveHMM_fit)</code></pre>
   labs(color = &quot;Etat prédit&quot;) +
   theme(axis.title = element_blank(), axis.text = element_blank(), 
         axis.ticks = element_blank())</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
 <p>Plot distribution steps</p>
 <pre class="r"><code>plot_distrib_steps &lt;- estimated_states %&gt;% 
   ggplot(aes(x = step)) + 
@@ -690,7 +690,7 @@ ICL(moveHMM_fit)</code></pre>
   labs(fill = &quot;Etat prédit&quot;, title = &quot;Angles&quot;)</code></pre>
 <p>Plot distributions</p>
 <pre class="r"><code>gridExtra::grid.arrange(plot_distrib_steps, plot_distrib_angles, nrow = 2)</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
 <p>contingence etats</p>
 <pre class="r"><code>get_contingency &lt;- function(ID_){
   state_sl &lt;- filter(moveHMM_states, ID %in% ID_) %&gt;% 
@@ -717,7 +717,7 @@ contingency_tibble %&gt;%
     labs(x = &quot;Longueur/Angle&quot;, y = &quot;Vitesse bivariée&quot;, title = &quot;Contingence des états&quot;) +
     scale_x_discrete(expand = c(0, 0)) + 
     scale_y_discrete(expand = c(0, 0))</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
 <p>Probabilite etat aposteriori</p>
 <pre class="r"><code>estimated_states %&gt;% 
   filter(ID == &quot;BR1705&quot;) %&gt;% 
@@ -728,7 +728,7 @@ contingency_tibble %&gt;%
   geom_line(aes(color = Etat), alpha = 0.5, size = 1.2) +
   labs(color = &quot;Etat&quot;, y = &quot;Probabilité&quot;, x = &quot;Pas de temps&quot;) +
   facet_wrap(~metric)</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
 </div>
 <div id="modèle-avec-covariable" class="section level2">
 <h2>Modèle avec covariable</h2>
@@ -792,7 +792,7 @@ map_dfr(betas, get_probs, .id = &quot;from&quot;) %&gt;%
   facet_grid(from ~ to, switch = &quot;y&quot;) +
   geom_line() +
   labs(x = &quot;Distance au nid&quot;, y = &quot;Probabilité de transition&quot;)</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
 </div>
 <div id="modèle-à-6-états" class="section level2">
 <h2>Modèle à 6 états</h2>
@@ -856,7 +856,7 @@ p2 &lt;- depmix_states_J6 %&gt;%
   scale_fill_discrete()</code></pre>
 <p>Plot 6 states</p>
 <pre class="r"><code>gridExtra::grid.arrange(p1, p2, nrow = 2)</code></pre>
-<p><img src="https://github.com/oliviergimenez/code_livre_variables_cachees/blob/master/gloaguen_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+<p><img src="https://raw.githubusercontent.com/oliviergimenez/code_livre_variables_cachees/master/gloaguen_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
 </div>
 
 
