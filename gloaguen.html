@@ -9,7 +9,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="P. GLoaguen, M.-P. Etienne" />
+<meta name="author" content="M.-P. Etienne, P. GLoaguen" />
 
 
 <title>Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation</title>
@@ -385,25 +385,478 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation</h1>
-<h4 class="author">P. GLoaguen, M.-P. Etienne</h4>
+<h4 class="author">M.-P. Etienne, P. GLoaguen</h4>
 
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<div id="packages-à-charger" class="section level2">
+<h2>Packages à charger</h2>
+<pre class="r"><code>rm(list = ls())
+library(tidyverse) # Pour la manipulation de données
+library(ggpubr)
+library(ggmap)
+library(sf) # Pour les objets spatiaux 
+library(&quot;rnaturalearth&quot;) # Pour les cartes
+library(lubridate) # Pour les dates
+library(nlme) # Pour l&#39;estimation
+source(file = &#39;code/utils_HMM.R&#39;)
+source(file = &#39;code/utils_ICL.R&#39;)
+library(moveHMM)
+library(depmixS4)
+library(circular)
+library(MARSS)</code></pre>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+<div id="les-données" class="section level2">
+<h2>Les données</h2>
+<p>On lit les données.</p>
+<pre class="r"><code>fou_dta &lt;- read.table(&quot;dat/donnees_fous.txt&quot;, sep = &quot;;&quot;, header = TRUE)</code></pre>
+<p>Carte du monde.</p>
+<pre class="r"><code>world &lt;- ne_countries(scale = &quot;medium&quot;, returnclass = &quot;sf&quot;) %&gt;%
+  st_crop(c(xmin = -90, ymin = -60, xmax = -30, ymax = 15))
+
+zone_contour &lt;-  fou_dta %&gt;% 
+  st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;) ) %&gt;% 
+  st_set_crs(4326) %&gt;% 
+  st_bbox() %&gt;% 
+  # {. * c(0.99, 0.99, 1.01, 1.01)} %&gt;% 
+  st_as_sfc()
+
+world_plot &lt;- world  %&gt;%  
+  ggplot() + 
+  geom_sf(fill = &quot;#c9d0a3&quot;) + 
+  geom_sf(data = zone_contour, fill = &quot;white&quot;, color = &quot;red&quot;) +
+  theme(panel.background = element_rect(fill = &quot;#99b3cc&quot;))</code></pre>
+<p>La trajectoire.</p>
+<pre class="r"><code>zone_box &lt;- c(-32.75, -4.7, -31.8, -3.75)
+zone_map &lt;- ggmap::get_stamenmap(bbox = zone_box, 
+                                 zoom = 10)
+traj_plot &lt;- ggmap::ggmap(zone_map) + 
+    labs(x = &quot;Longitude&quot;, y = &quot;Latitude&quot;) +
+    geom_path(data = fou_dta, aes(x = lon, y = lat, color = ID)) +
+  theme(legend.position = &quot;none&quot;, axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank())</code></pre>
+<p>On visualise.</p>
+<pre class="r"><code>gridExtra::grid.arrange(world_plot, traj_plot, nrow = 1)</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>Projection.</p>
+<pre class="r"><code>fou_dta_utm &lt;- fou_dta %&gt;% 
+  st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;)) %&gt;% 
+  mutate(dist_scaled = scale(dist.nid),
+         dist_scaled_sq = dist_scaled^2,
+         all_scaled = scale(alt)) %&gt;% 
+  st_set_crs(4326)  %&gt;% 
+  st_transform(crs=32725) %&gt;% 
+  mutate(Easting = st_coordinates(.)[,&quot;X&quot;],
+         Northing = st_coordinates(.)[,&quot;Y&quot;])</code></pre>
+</div>
+<div id="kalman-smoothing" class="section level2">
+<h2>Kalman smoothing</h2>
+<p>On lisse par individu</p>
+<pre class="r"><code>smoothing_function &lt;- function(utm_data_){
+  MARSS_data &lt;- utm_data_ %&gt;% 
+    as.data.frame() %&gt;% # leaving sf format
+    dplyr::select(x = Easting, y = Northing) %&gt;% 
+    as.matrix() %&gt;% 
+    t()
+  model_list &lt;- list(B = diag(1, 2), Z = diag(1, 2),
+                     x0 = MARSS_data[,1, drop = FALSE], 
+                     V0 = diag(1, 2),
+                     U = matrix(0, nrow = 2),
+                     A = matrix(0, nrow = 2),
+                     Q = matrix(list(&quot;q1&quot;, 0, 0, &quot;q2&quot;), 2, 2),
+                     C = matrix(0, 2, 2),
+                     c = matrix(0, 2, 1),
+                     G = diag(1, 2),
+                     D = diag(0, 2),
+                     d = matrix(0, 2, 1),
+                     # R = matrix(list(&quot;r&quot;, 0, 0, &quot;r&quot;), 2, 2),
+                     R = diag(3, 2)) # Erreur standard de 1 metres
+  MLEobj &lt;- MARSS(MARSS_data, model = model_list,
+                  control = list(maxit = 1e3))
+  
+  # MARSSkf needs a marss MLE object with the par element set
+  MLEobj$par &lt;- MLEobj$start
+  # Compute the kf output at the params used for the inits
+  kfList &lt;- MARSSkfss(MLEobj)
+  output &lt;- utm_data_ %&gt;% 
+    mutate(Easting_smoothed = kfList$xtT[1, ],
+           Northing_smoothed = kfList$xtT[2, ])  %&gt;% 
+    as_tibble() %&gt;% 
+    dplyr::select(-geometry)
+  return(output)
+}</code></pre>
+<p>Lissage Kalman</p>
+<pre class="r"><code>fou_dta_utm_smoothed &lt;- map_dfr(split(fou_dta_utm, 
+                                      fou_dta_utm$ID),
+                                smoothing_function)</code></pre>
+<pre><code>## Success! abstol and log-log tests passed at 16 iterations.
+## Alert: conv.test.slope.tol is 0.5.
+## Test with smaller values (&lt;0.1) to ensure convergence.
+## 
+## MARSS fit is
+## Estimation method: kem 
+## Convergence test: conv.test.slope.tol = 0.5, abstol = 0.001
+## Estimation converged in 16 iterations. 
+## Log-likelihood: -36300.97 
+## AIC: 72605.94   AICc: 72605.94   
+##  
+##      Estimate
+## Q.q1     2747
+## Q.q2     7837
+## Initial states (x0) defined at t=0
+## 
+## Standard errors have not been calculated. 
+## Use MARSSparamCIs to compute CIs and bias estimates.
+## 
+## Success! abstol and log-log tests passed at 16 iterations.
+## Alert: conv.test.slope.tol is 0.5.
+## Test with smaller values (&lt;0.1) to ensure convergence.
+## 
+## MARSS fit is
+## Estimation method: kem 
+## Convergence test: conv.test.slope.tol = 0.5, abstol = 0.001
+## Estimation converged in 16 iterations. 
+## Log-likelihood: -9378.381 
+## AIC: 18760.76   AICc: 18760.77   
+##  
+##      Estimate
+## Q.q1    18678
+## Q.q2     2557
+## Initial states (x0) defined at t=0
+## 
+## Standard errors have not been calculated. 
+## Use MARSSparamCIs to compute CIs and bias estimates.
+## 
+## Success! abstol and log-log tests passed at 16 iterations.
+## Alert: conv.test.slope.tol is 0.5.
+## Test with smaller values (&lt;0.1) to ensure convergence.
+## 
+## MARSS fit is
+## Estimation method: kem 
+## Convergence test: conv.test.slope.tol = 0.5, abstol = 0.001
+## Estimation converged in 16 iterations. 
+## Log-likelihood: -21117.56 
+## AIC: 42239.11   AICc: 42239.11   
+##  
+##      Estimate
+## Q.q1     2685
+## Q.q2     9278
+## Initial states (x0) defined at t=0
+## 
+## Standard errors have not been calculated. 
+## Use MARSSparamCIs to compute CIs and bias estimates.</code></pre>
+<p>Plot smoothing.</p>
+<pre class="r"><code>fou_dta_utm_smoothed %&gt;% 
+  dplyr::select(Easting, Easting_smoothed, Northing, Northing_smoothed) %&gt;% 
+  unite(col = &quot;Raw&quot;, Easting, Northing, sep = &quot;-&quot;) %&gt;% 
+  unite(col = &quot;Smoothed&quot;, Easting_smoothed, Northing_smoothed, sep = &quot;-&quot;) %&gt;% 
+  gather(key = &quot;Trajectoire&quot;, value = &quot;Coordonnees&quot;,
+         factor_key = TRUE) %&gt;% 
+  separate(col = Coordonnees, into = c(&quot;Longitude&quot;, &quot;Latitude&quot;), 
+           sep = &quot;-&quot;, convert = TRUE) %&gt;% 
+  mutate(Trajectoire = factor(Trajectoire, labels = c(&quot;Brute&quot;, &quot;Lissée&quot;))) %&gt;% 
+  ggplot() +
+  aes(x = Longitude, y = Latitude, color = Trajectoire) +
+  geom_path() +
+  coord_cartesian(ylim = c(955, 956) * 1e4, xlim = c(575, 580) * 1e3) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(),
+        axis.title = element_blank())</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>Utilisation du package moveHMM.</p>
+<p>Metric Step Length/ Turning angle is implemented is the moveHMM package.</p>
+<pre class="r"><code>moveHMM_data &lt;- fou_dta_utm_smoothed %&gt;% 
+  as.data.frame() %&gt;%
+  rowid_to_column( var = &quot;id_point&quot;) %&gt;% 
+  dplyr::select(ID, id_point, time_step, Easting, Northing, 
+                Easting_smoothed, Northing_smoothed, 
+                alt_scaled, dist_scaled, dist_scaled_sq) %&gt;% 
+ moveHMM::prepData(type = &quot;UTM&quot;, coordNames = c(&quot;Easting_smoothed&quot;,
+                                                &quot;Northing_smoothed&quot;))</code></pre>
+<p>Utilisation du package depmix.</p>
+<p>Gaussian emission HMM is implemented in the depmixS4 package.</p>
+<p>Creation de v_p/v_r</p>
+<pre class="r"><code>depmix_data &lt;- moveHMM_data %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(v_p = step * cos(angle), v_r = step * sin(angle)) %&gt;%
+  replace_na(list(angle = 0, v_r = 0)) %&gt;% 
+  mutate(v_p = ifelse(is.na(v_p), step, v_p))
+# Distinguishing animals
+n_times &lt;- depmix_data %&gt;% 
+  group_by(ID) %&gt;% 
+  summarise(n_times = n()) %&gt;% 
+  pull(n_times)</code></pre>
+<p>Modèle initial.</p>
+<pre class="r"><code>n_states &lt;- 3
+set.seed(123)
+initial_model &lt;- depmixS4::depmix(list(v_p ~ 1, v_r ~ 1), data = depmix_data, 
+                                                nstates = n_states,
+                         family = list(gaussian(), gaussian()), ntimes = n_times,
+                         respstart = get_init_depmix(depmix_data, nbStates = n_states),
+                         initdata = rep(1/n_states,n_states),
+                         transition = ~ 1)
+depmix_fit &lt;- depmixS4::fit(initial_model,
+                            verbose = FALSE, 
+                            emcontrol = em.control(crit = &quot;relative&quot;))</code></pre>
+<pre><code>## converged at iteration 78 with logLik: -35517.53</code></pre>
+<p>Résultats.</p>
+<p>States labelling is arranged according the the mean step length.</p>
+<pre class="r"><code>rank_vector_depmix &lt;-  posterior(depmix_fit) %&gt;% 
+  dplyr::select(state) %&gt;% 
+  mutate(step = depmix_data$step) %&gt;% 
+  group_by(state) %&gt;% 
+  summarise(mean_step = mean(step, na.rm = T)) %&gt;% 
+  arrange(state) %&gt;% 
+  pull(mean_step) %&gt;% 
+  rank()
+depmix_states &lt;- posterior(depmix_fit) %&gt;% 
+  rename(Predicted_state = state) %&gt;% # So that it do not start with s
+  rename_at(.vars = vars(starts_with(&quot;S&quot;)), 
+            function(name) paste0(&quot;State&quot;,rank_vector_depmix[str_extract(name, &quot;[[::0-9::]]&quot;) %&gt;%
+                                                               as.numeric()])) %&gt;% 
+  mutate(Predicted_state = rank_vector_depmix[Predicted_state]  %&gt;% 
+           factor(levels = 1:n_states)) %&gt;% 
+  bind_cols(depmix_data, .) %&gt;% 
+  # rename(Easting = x, Northing = y) %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(metric = &quot;Vitesse bivariée&quot;)</code></pre>
+<p>moveHMM_fit</p>
+<pre class="r"><code>par_init_moveHMM &lt;- get_init_moveHMM(dta = moveHMM_data, nbStates = n_states)
+set.seed(123)
+moveHMM_fit &lt;- moveHMM::fitHMM(data = moveHMM_data, nbStates = n_states, 
+                              stepPar0 = par_init_moveHMM$stepPar0,
+                              anglePar0 = par_init_moveHMM$anglePar0,
+                              formula = ~ 1) </code></pre>
+<p>moveHMM_results</p>
+<pre class="r"><code>rank_vector_moveHMM &lt;-  tibble(state = moveHMM::viterbi(moveHMM_fit)) %&gt;% 
+  mutate(step = depmix_data$step) %&gt;% 
+  group_by(state) %&gt;% 
+  summarise(mean_step = mean(step, na.rm = T)) %&gt;% 
+  arrange(state) %&gt;% 
+  pull(mean_step) %&gt;% 
+  rank()
+moveHMM_states &lt;- moveHMM::stateProbs(moveHMM_fit) %&gt;% 
+  as_tibble() %&gt;% 
+  rename_at(.vars = vars(starts_with(&quot;V&quot;)), 
+            function(name) paste0(&quot;State&quot;,rank_vector_moveHMM[str_extract(name, &quot;[[::0-9::]]&quot;) %&gt;%
+                                                               as.numeric()])) %&gt;%
+  bind_cols(depmix_data, .) %&gt;% 
+  mutate(Predicted_state = rank_vector_moveHMM[moveHMM::viterbi(moveHMM_fit)] %&gt;% 
+           factor(levels = 1:n_states)) %&gt;% 
+  mutate(metric = &quot;Longueur/Angle&quot;)
+ICL(moveHMM_fit)</code></pre>
+<pre><code>## 
+##  Hidden contribution :  -299.0032
+##  Emission contribution :  -11762.89</code></pre>
+<pre><code>## [1] 24210.59</code></pre>
+<p>Etats estimés.</p>
+<pre class="r"><code>estimated_states &lt;- moveHMM_states %&gt;% 
+  bind_rows(depmix_states) </code></pre>
+<p>Visualise états prédits.</p>
+<pre class="r"><code>estimated_states %&gt;% 
+  group_by(ID, metric) %&gt;%
+  mutate(Next_East = lead(x), Next_North = lead(y)) %&gt;% 
+  ggplot(aes(x = x, y = y)) +
+  # geom_point(aes(y = Value, color = Predicted_state)) + 
+  geom_segment(aes(xend = Next_East, yend = Next_North,
+                   color = Predicted_state, 
+                   group = interaction(metric, ID, linetype = ID))) +
+  # geom_point(aes(y = Value, color = Predicted_state)) +
+  facet_wrap( ~ metric) +
+  labs(color = &quot;Etat prédit&quot;) +
+  theme(axis.title = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank())</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p>Plot distribution steps</p>
+<pre class="r"><code>plot_distrib_steps &lt;- estimated_states %&gt;% 
+  ggplot(aes(x = step)) + 
+  geom_density(aes(fill = Predicted_state), alpha = 0.5) +
+  facet_wrap(~metric) +
+  labs(y = &quot;Densité estimée&quot;, x = &quot;&quot;, title = &quot;Longueurs de pas&quot;,
+       fill = &quot;Etat prédit&quot;)</code></pre>
+<p>Plot distribution angles</p>
+<pre class="r"><code>plot_distrib_angles &lt;-  estimated_states %&gt;%  
+  ggplot(aes(x = angle * 180 / pi)) +
+    coord_polar(theta = &quot;x&quot;, start = pi/2 , direction = -1, clip = &quot;off&quot;) +
+  facet_wrap(~ metric) +
+  geom_histogram(aes(fill = Predicted_state, y = ..density..),
+                 breaks = seq(-180, 180, by = 15), color = &quot;black&quot;,
+                  alpha = 0.5,
+                  position = &quot;identity&quot;) +
+  scale_x_continuous(breaks = seq(-180, 180, by = 15), expand = c(0, 0)) +
+  theme(axis.ticks = element_blank(), axis.title = element_blank(),
+        axis.text.y = element_blank()) +
+  labs(fill = &quot;Etat prédit&quot;, title = &quot;Angles&quot;)</code></pre>
+<p>Plot distributions</p>
+<pre class="r"><code>gridExtra::grid.arrange(plot_distrib_steps, plot_distrib_angles, nrow = 2)</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p>contingence etats</p>
+<pre class="r"><code>get_contingency &lt;- function(ID_){
+  state_sl &lt;- filter(moveHMM_states, ID %in% ID_) %&gt;% 
+    pull(Predicted_state)
+  state_bv &lt;- filter(depmix_states, ID %in% ID_) %&gt;% 
+    pull(Predicted_state)
+  contingency_table &lt;- table(state_sl, state_bv) %&gt;%
+    prop.table(margin = 2) %&gt;% 
+    as_tibble() %&gt;% 
+    # mutate(ID = ID_) %&gt;% 
+    rename(Freq = n)
+}
+contingency_tibble &lt;- estimated_states %&gt;% 
+    pull(ID) %&gt;% 
+    unique() %&gt;% 
+    get_contingency()
+contingency_tibble %&gt;% 
+    mutate(state_bv = factor(state_bv, levels = paste(3:1))) %&gt;% 
+    ggplot(aes(state_sl, state_bv)) + 
+    geom_tile(aes(fill = Freq)) +
+    # facet_wrap(~ID) +
+    geom_text(aes(label = round(Freq, 2)), color = &quot;red&quot;) +
+    scale_fill_viridis_c(name = &quot;Proportion&quot;) + 
+    labs(x = &quot;Longueur/Angle&quot;, y = &quot;Vitesse bivariée&quot;, title = &quot;Contingence des états&quot;) +
+    scale_x_discrete(expand = c(0, 0)) + 
+    scale_y_discrete(expand = c(0, 0))</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p>Probabilite etat aposteriori</p>
+<pre class="r"><code>estimated_states %&gt;% 
+  filter(ID == &quot;BR1705&quot;) %&gt;% 
+  dplyr::select(time_step, metric, State1, State2) %&gt;%
+  gather(-time_step, -metric, key = &quot;Etat&quot;, value = &quot;Proba&quot;) %&gt;% 
+  mutate(Etat = str_extract(Etat, &quot;[[::0-9::]]&quot;)) %&gt;% 
+  ggplot(aes(x = time_step, y = Proba)) +
+  geom_line(aes(color = Etat), alpha = 0.5, size = 1.2) +
+  labs(color = &quot;Etat&quot;, y = &quot;Probabilité&quot;, x = &quot;Pas de temps&quot;) +
+  facet_wrap(~metric)</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-22-1.png" width="672" /></p>
+</div>
+<div id="modèle-avec-covariable" class="section level2">
+<h2>Modèle avec covariable</h2>
+<p>Définition des paramètres initiaux (fastidieux)</p>
+<pre class="r"><code>mat_from_1 &lt;- c(10, 0.5, 0.5,
+                0, 1, 1
+                ,0, 1, 1
+) 
+mat_from_2 &lt;- c(10, 0.5, 0.001,
+                0, 1, 0.001
+                ,0, 1, 0.001
+)
+mat_from_3 &lt;- c(10, 0.001, 0.5,
+                0, 0.001, 1
+                ,0, 0.001, 1
+)
+trans_inits &lt;-  c(mat_from_1, mat_from_2, mat_from_3)
+fixed_parameters &lt;- c(rep(TRUE, 3), # Distribution initiale
+                      trans_inits %in% c(0, 10),
+                      rep(FALSE, 12))
+initial_model_covariates &lt;- depmixS4::depmix(list(v_p ~ 1, v_r ~ 1), 
+                                             data = depmix_data, 
+                                             nstates = 3,
+                                             family = list(gaussian(), gaussian()),
+                                             ntimes = n_times,
+                                             respstart = getpars(depmix_fit)[13:24],
+                                             trstart = trans_inits,
+                                             instart = rep(1/3, 3),
+                                             transition = ~ dist_scaled + dist_scaled_sq)
+
+depmix_fit_covariates &lt;- depmixS4::fit(initial_model_covariates, verbose = FALSE,
+                                       fixed = fixed_parameters,
+                                       emcontrol = em.control(crit = &quot;absolute&quot;))</code></pre>
+<pre><code>## 
+## Iter: 1 fn: 35509.6490    Pars:  -28.029922  -6.022884   7.379797   0.350806 -22.937094   1.179394  27.857595  24.039215  27.967898  26.892274  36.864200  37.342470  -0.081545   5.910703   0.441220  -0.212335   0.213694   0.037421 156.081821  29.703281   0.250873   1.560060   6.768905   1.202913  -0.008824   0.125724  70.589818  32.787378  -0.009771   1.726769
+## Iter: 2 fn: 35509.6490    Pars:  -28.030240  -6.022809   7.379897   0.350924 -22.937428   1.179325  27.857710  24.038955  27.968389  26.893164  36.864716  37.342589  -0.082490   5.909983   0.440826  -0.212461   0.214089   0.037761 156.083129  29.702884   0.250871   1.560038   6.768896   1.202927  -0.008824   0.125724  70.590161  32.787477  -0.009770   1.726771
+## solnp--&gt; Completed in 2 iterations</code></pre>
+<pre class="r"><code>betas &lt;- purrr::map(depmix_fit_covariates@transition,
+             function(x) x@parameters$coefficients)
+get_probs &lt;- function(beta_){
+  x_ &lt;- seq(-1.75, 1.75, length.out = 1001)
+  my_X &lt;- tibble(Int = rep(1, 1001), 
+                 x = x_,
+                 x2 = x^2) %&gt;% 
+    as.matrix()
+  x_beta &lt;- my_X %*% beta_
+  Pr1 &lt;- apply(x_beta, 1, function(x) 1 / (1 + sum(exp(x[2:3]))))
+  Pr23 &lt;- exp(x_beta[, 2:3]) * Pr1
+  cbind(Pr1, Pr23) %&gt;% 
+    as.data.frame() %&gt;% 
+    mutate(d = x_) %&gt;% 
+    tidyr::pivot_longer(cols = -d,
+                        names_to = &quot;to&quot;,
+                        values_to = &quot;Prob&quot;) %&gt;% 
+    mutate(to = factor(to, 
+                       levels = c(&quot;Pr1&quot;, &quot;St2&quot;, &quot;St3&quot;),
+                       labels = paste0(1:3)))
+}
+map_dfr(betas, get_probs, .id = &quot;from&quot;) %&gt;% 
+  ggplot(aes(x = d, y = Prob)) +
+  facet_grid(from ~ to, switch = &quot;y&quot;) +
+  geom_line() +
+  labs(x = &quot;Distance au nid&quot;, y = &quot;Probabilité de transition&quot;)</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
+</div>
+<div id="modèle-à-6-états" class="section level2">
+<h2>Modèle à 6 états</h2>
+<pre class="r"><code>n_states &lt;- 6
+set.seed(123)
+initial_model_J6 &lt;- depmixS4::depmix(list(v_p ~ 1, v_r ~ 1), data = depmix_data, 
+                                                nstates = n_states,
+                         family = list(gaussian(), gaussian()), ntimes = n_times,
+                         respstart = get_init_depmix(depmix_data, nbStates = n_states),
+                         initdata = rep(1/n_states,n_states),
+                         transition = ~ 1)
+depmix_fit_J6 &lt;- depmixS4::fit(initial_model_J6,
+                            verbose = FALSE, 
+                            emcontrol = em.control(crit = &quot;relative&quot;))</code></pre>
+<pre><code>## converged at iteration 37 with logLik: -30023.08</code></pre>
+<pre class="r"><code>depmix_fit_J6</code></pre>
+<pre><code>## Convergence info: Log likelihood converged to within tol. (relative change) 
+## &#39;log Lik.&#39; -30023.08 (df=59)
+## AIC:  60164.15 
+## BIC:  60558.21</code></pre>
+<pre class="r"><code>rank_vector_depmix_J6 &lt;-  posterior(depmix_fit_J6) %&gt;% 
+  dplyr::select(state) %&gt;% 
+  mutate(step = depmix_data$step) %&gt;% 
+  group_by(state) %&gt;% 
+  summarise(mean_step = mean(step, na.rm = T)) %&gt;% 
+  arrange(state) %&gt;% 
+  pull(mean_step) %&gt;% 
+  rank()
+depmix_states_J6 &lt;- posterior(depmix_fit_J6) %&gt;% 
+  rename(Predicted_state = state) %&gt;% # So that it do not start with s
+  rename_at(.vars = vars(starts_with(&quot;S&quot;)), 
+            function(name) paste0(&quot;State&quot;,rank_vector_depmix_J6[str_extract(name, &quot;[[::0-9::]]&quot;) %&gt;%
+                                                               as.numeric()])) %&gt;% 
+  mutate(Predicted_state = rank_vector_depmix_J6[Predicted_state]  %&gt;% 
+           factor(levels = 1:n_states)) %&gt;% 
+  bind_cols(depmix_data, .) %&gt;% 
+  # rename(Easting = x, Northing = y) %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(metric = &quot;Vitesse bivariée&quot;)
+
+
+p1 &lt;- depmix_states_J6 %&gt;% 
+  group_by(ID, metric) %&gt;%
+  mutate(Next_East = lead(x), Next_North = lead(y)) %&gt;% 
+  ggplot(aes(x = x, y = y)) +
+  # geom_point(aes(y = Value, color = Predicted_state)) + 
+  geom_segment(aes(xend = Next_East, yend = Next_North,
+                   color = Predicted_state, 
+                   group = interaction(metric, ID, linetype = ID))) +
+  # geom_point(aes(y = Value, color = Predicted_state)) +
+  labs(color = &quot;Etat prédit&quot;, 
+       title = &quot;Trajectoires&quot;) +
+  theme(axis.title = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank())
+
+p2 &lt;- depmix_states_J6 %&gt;% 
+  ggplot(aes(x = step)) + 
+  geom_density(aes(fill = Predicted_state), alpha = 0.5) +
+  labs(y = &quot;Densité estimée&quot;, x = &quot;&quot;, title = &quot;Longueurs de pas&quot;,
+       fill = &quot;Etat prédit&quot;) +
+  scale_fill_discrete()</code></pre>
+<p>Plot 6 states</p>
+<pre class="r"><code>gridExtra::grid.arrange(p1, p2, nrow = 2)</code></pre>
+<p><img src="gloaguen_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
 </div>
 
 
