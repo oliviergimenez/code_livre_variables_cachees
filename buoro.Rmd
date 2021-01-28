@@ -199,3 +199,250 @@ traceplot(fit.mcmc)
 densplot(fit.mcmc)
 ```
 
+
+## Case study 2: Coûts de la maturation et la migration pour la survie : une approche théorique
+
+
+```{r}
+library(rjags) #here Jags 4.10
+library(coda)
+```
+
+Load dataset. 
+Data from F. Courbet and F. Lefevre - INRAE URFM.
+Simulation castanea from H. Davi - INRAE URFM
+```{r}
+data <- read.csv("dat/Dataset_cedrus_atlantica.csv",header=T,sep=";")
+```
+
+Create JAGS model file
+```{r}
+cat("
+    model{
+        
+        ##prior for the mod1 mod 2 selection 
+        Y ~ dbern(pY)
+        pY ~dunif(0,1)
+        
+        ##a priori distribution
+        ##some are for each density stands with [1] and [2]
+        gamma[1] ~ dnorm(0,0.001)
+        gamma[2] ~ dnorm(0,0.001)
+        tau_BAI <- 1/(sd_BAI*sd_BAI) 
+        sd_BAI ~ dunif(0,10)
+
+        PG_bar ~ dnorm(0,0.0001)
+        tauPG <- 1/(sigma*sigma)
+        sigma ~ dunif(0,10)
+
+        tau_proba <- 1/(sigma_proba*sigma_proba)
+        sigma_proba ~ dunif(0,50) 
+        
+        beta1[1] ~ dnorm(0,0.001)
+        beta2[1] ~ dnorm(0,0.001)
+        beta1[2] ~ dnorm(0,0.001)
+        beta2[2] ~ dnorm(0,0.001)
+        
+        beta0 <- -10 #old version : beta0 ~ dnorm(0,0.001)
+        pr_X ~ dunif(0,1)
+
+        for (i in 1:3){
+            mu.eps[i] <- 0
+        }
+        Id[1,1] <- 1
+        Id[2,2] <- 1
+        Id[3,3] <- 1
+        Id[1,2] <- 0
+        Id[1,3] <- 0
+        Id[2,1] <- 0
+        Id[2,3] <- 0
+        Id[3,1] <- 0
+        Id[3,2] <- 0
+        inv.SIGMA ~ dwish(Id,4)
+        
+        for (i in 1:(Nind-1)){
+            eps[1:3,i] ~ dmnorm(mu.eps, inv.SIGMA)
+
+        }
+        eps[1,Nind] <- -sum(eps[1,1:(Nind-1)])
+        eps[2,Nind] <- -sum(eps[2,1:(Nind-1)])
+        eps[3,Nind] <- -sum(eps[3,1:(Nind-1)])
+
+        
+        # estimating covariance (rho) among group predictors
+	SIGMA <- inverse(inv.SIGMA)
+	for(k in 1:3){
+            for (k.prime in 1:3){
+                rho[k,k.prime] <- SIGMA[k,k.prime]/sqrt(SIGMA[k,k]*SIGMA[k.prime,k.prime])
+            }
+	}	
+        
+
+        ##likelihood
+        for (i in 1:Nind){
+
+           
+            X[i,1] ~ dbern(pr_X)
+            IB[i,1] ~ dpois(X[i,1]*meanIB[i,1])
+            log(meanIB[i,1]) <- (beta1[dens[i]] + Y*eps[2,i])*NPP[i,1]+(1-Y)*eps[2,i]
+            PG_bartot[i,1] ~ dnorm(PG_bar,tauPG)
+            logit(PG[i,1]) <- PG_bartot[i,1]
+
+            for (t in 2:Ntemps){
+                
+                mu_BAI[i,t] <- (gamma[dens[i]] + Y*eps[1,i])*NPP[i,t]+(1-Y)*eps[1,i]  
+                BAI[i,t] ~ dnorm(mu_BAI[i,t],tau_BAI)
+                
+                ##male cones -- male flower
+                PG_bartot[i,t] ~ dnorm(PG_bar,tauPG)
+                logit(PG[i,t]) <- PG_bartot[i,t]
+                X[i,t] ~ dbern(pr_X)
+                IB[i,t] ~ dpois(X[i,t]*meanIB[i,t])
+                log(meanIB[i,t]) <- (beta1[dens[i]] + Y*eps[2,i])*NPP[i,t] + (1-Y)*eps[2,i]
+
+                pr_IMC[i,t] <- PG[i,t]*IB[i,t]
+                proba[i,t,1] <- pnorm(10,pr_IMC[i,t],tau_proba)
+                proba[i,t,2] <- pnorm(20,pr_IMC[i,t],tau_proba)-pnorm(10,pr_IMC[i,t],tau_proba)
+                proba[i,t,3] <- pnorm(30,pr_IMC[i,t],tau_proba)-pnorm(20,pr_IMC[i,t],tau_proba)
+                proba[i,t,4] <- pnorm(40,pr_IMC[i,t],tau_proba)-pnorm(30,pr_IMC[i,t],tau_proba)
+                proba[i,t,5] <- 1-pnorm(40,pr_IMC[i,t],tau_proba)
+                M[i,t,1:5] ~ dmulti(proba[i,t,1:5],1)
+                
+                ###female cones -- female flowers (based on previous year and current year)
+                logit(pi[i,t]) <- beta0 + (beta2[dens[i]] + Y*eps[3,i])*NPP[i,t] + (1-Y)*eps[3,i]
+                FC[i,t] ~ dpois(pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1])
+
+                ##simulating data
+                BAI.rep[i,t] ~ dnorm(mu_BAI[i,t],tau_BAI)
+                eval.BAI[i,t] <- mu_BAI[i,t]
+                E.BAI[i,t] <- pow(BAI[i,t]-eval.BAI[i,t],2)/(eval.BAI[i,t]+0.5)
+                Erep.BAI[i,t] <- pow(BAI.rep[i,t]-eval.BAI[i,t],2)/(eval.BAI[i,t]+0.5)
+                
+                M.rep[i,t,1:5] ~ dmulti(proba[i,t,1:5],1)
+                eval.M[i,t,1:5] <- proba[i,t,1:5]
+                E.M1[i,t] <- pow(-M[i,t,1]+eval.M[i,t,1],2)     #/(eval.M[i,t,1]+0.5)
+                Erep.M1[i,t] <- pow(-M.rep[i,t,1]+eval.M[i,t,1],2)  #/(eval.M[i,t,1]+0.5)
+                E.M2[i,t] <- pow(-M[i,t,2]+eval.M[i,t,2],2)     #/(eval.M[i,t,2]+0.5)
+                Erep.M2[i,t] <- pow(-M.rep[i,t,2]+eval.M[i,t,2],2)  #/(eval.M[i,t,2]+0.5)
+                E.M3[i,t] <- pow(-M[i,t,3]+eval.M[i,t,3],2)     #/(eval.M[i,t,3]+0.5)
+                Erep.M3[i,t] <- pow(-M.rep[i,t,3]+eval.M[i,t,3],2)  #/(eval.M[i,t,3]+0.5)
+                E.M4[i,t] <- pow(-M[i,t,4]+eval.M[i,t,4],2)     #/(eval.M[i,t,4]+0.5)
+                Erep.M4[i,t] <- pow(-M.rep[i,t,4]+eval.M[i,t,4],2)  #/(eval.M[i,t,4]+0.5)
+                E.M5[i,t] <- pow(-M[i,t,5]+eval.M[i,t,5],2)     #/(eval.M[i,t,5]+0.5)
+                Erep.M5[i,t] <- pow(-M.rep[i,t,5]+eval.M[i,t,5],2)  #/(eval.M[i,t,5]+0.5)
+                                
+                FC.rep[i,t] ~ dpois(pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1])
+                eval.FC[i,t] <- pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1]
+                E.FC[i,t] <- pow(FC[i,t]-eval.FC[i,t],2)/(eval.FC[i,t]+0.5)
+                Erep.FC[i,t] <- pow(FC.rep[i,t]-eval.FC[i,t],2)/(eval.FC[i,t]+0.5)
+                
+            }
+        }
+
+        ##simulating data: needed for model validation (see model evaluation in SI)
+        fit.BAI <- sum(E.BAI[,2:8])
+        fitrep.BAI <- sum(Erep.BAI[,2:8])
+        fit.M1 <- sum(E.M1[,4:7])/(Nind*4)
+        fitrep.M1 <- sum(Erep.M1[,4:7])/(Nind*4)
+        fit.M2 <- sum(E.M2[,4:7])/(Nind*4)
+        fitrep.M2 <- sum(Erep.M2[,4:7])/(Nind*4)
+        fit.M3 <- sum(E.M3[,4:7])/(Nind*4)
+        fitrep.M3 <- sum(Erep.M3[,4:7])/(Nind*4)
+        fit.M4 <- sum(E.M4[,4:7])/(Nind*4)
+        fitrep.M4 <- sum(Erep.M4[,4:7])/(Nind*4)
+        fit.M5 <- sum(E.M5[,4:7])/(Nind*4)
+        fitrep.M5 <- sum(Erep.M5[,4:7])/(Nind*4)
+        fit.FC <- sum(E.FC[,4:7])
+        fitrep.FC <- sum(Erep.FC[,4:7])
+        
+    }
+", file="Bayesian_model_studycase.jags")
+```
+
+define and convert observations
+individual, year and obs
+```{r}
+Nind <- length(unique(data$tree_ID))
+Ntemps <- length(unique(data$year))
+castNPP<-matrix(data$resources_NPP_castanea,ncol=Ntemps,byrow=T)
+castNPP <- castNPP/max(castNPP) #range(1/(1+exp(-(0+0*as.vector(castNPP)))))
+
+BAI <- matrix(data$BAI_growth,ncol=Ntemps,byrow=T)
+M <- matrix(data$pollen_index,ncol=Ntemps,byrow=T)
+FC <- matrix(data$cone_count,ncol=Ntemps,byrow=T)
+```
+
+For density 
+```{r}
+dens <-matrix(data$density_plot,ncol=Ntemps,byrow=T)
+dens <- as.numeric(as.factor(dens[,1]))
+```
+
+Convert pollen dataset
+```{r}
+Mmatrice <- array(NA,dim=c(nrow(M),ncol(M),5))
+Mmatrice[,,1] <- (M==0)+0
+Mmatrice[,,2] <- (M==1)+0
+Mmatrice[,,3] <- (M==2)+0
+Mmatrice[,,4] <- (M==3)+0
+Mmatrice[,,5] <- (M==4)+0
+
+X <- ((M+cbind(FC[,-1],rep(NA,Nind)))>0)+0
+Xinit <- matrix(NA,ncol=ncol(X),nrow=nrow(X))
+Xinit[,3] <- (FC[,4]>0)+0 #to avoid problem non numerical initial values
+```
+
+Model implementation 
+(can take an hour (with Intel Xeon CPU E3-1240 3.50GHz, memory system 16G))
+```{r}
+n.chains<-3
+n.iter<-100000
+n.burn<-100000
+n.thin<-100
+
+# quicker run, for illustration purpose
+n.chains<-3
+n.iter<-1000
+n.burn<-100
+n.thin<-2
+
+#check time begining
+time0=Sys.time()
+
+########################
+#run model and select parameters of interest
+modele <- jags.model(file="Bayesian_model_studycase.jags", 
+                     data=list(Nind=Nind,Ntemps=Ntemps,BAI=BAI,M=Mmatrice,FC=FC,NPP=castNPP,X=X,dens=dens), 
+                     inits=list(PG_bartot=matrix(0,ncol=Ntemps,nrow=Nind),X=Xinit), 
+                     n.chains=n.chains, quiet=FALSE)
+
+update(modele, n.iter = n.burn)
+RES <- coda.samples(model = modele, 
+                    variable.names = c("pY","Y", "gamma","sd_BAI","pr_X","PG_bar","PG","sigma","beta0","beta1","beta2","rho","SIGMA","eps","fit.BAI","fitrep.BAI","fit.M1","fitrep.M1","fit.M2","fitrep.M2","fit.M3","fitrep.M3","fit.M4","fitrep.M4","fit.M5","fitrep.M5","fit.FC","fitrep.FC","sigma_proba","FC.rep","BAI.rep"),
+                    n.iter = n.iter,
+                    thin = n.thin)
+print(Sys.time()-time0)
+```
+
+Short check model 
+```{r}
+#select the 3 chains 
+C1 <- as.matrix(RES[[1]])
+C2 <- as.matrix(RES[[2]])
+C3 <- as.matrix(RES[[3]])
+plot(C1[,"rho[2,3]"],type="l")
+lines(C2[,"rho[2,3]"],col=2)
+lines(C3[,"rho[2,3]"],col=3)
+
+plot(RES[,"rho[1,2]"])
+plot(RES[,"rho[1,3]"])
+plot(RES[,"rho[2,3]"])
+plot(RES[,"pr_X"])
+plot(RES[,"sigma_proba"])
+plot(RES[,"sigma"])
+plot(RES[,"PG_bar"])
+plot(RES[,"sd_BAI"])
+plot(RES[,"gamma[1]"]) #density 1 
+plot(RES[,"gamma[2]"]) #plot density 2
+```
+

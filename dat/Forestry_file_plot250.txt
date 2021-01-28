@@ -1,0 +1,6 @@
+# Silvicultural scenario for Castaneaonly for BAU, wood energy and carbon scenarios		
+# data from Francois courbet		
+# cedrus atlantica	
+# Age	Percentage of trees to be cut	price
+26	80	35	1
+37	54	35	1

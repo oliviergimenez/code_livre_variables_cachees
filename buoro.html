@@ -540,7 +540,7 @@ cat( &quot;Sampling final MCMC chain…\n&quot; )</code></pre>
 end.time = Sys.time()
 elapsed.time = difftime(end.time, start.time, units=&#39;mins&#39;)
 cat(&quot;Sample analyzed after &quot;, elapsed.time, &#39; minutes\n&#39;)</code></pre>
-<pre><code>## Sample analyzed after  0.8881788  minutes</code></pre>
+<pre><code>## Sample analyzed after  0.9532645  minutes</code></pre>
 </div>
 <div id="examine-the-results" class="section level2">
 <h2>Examine the results</h2>
@@ -549,17 +549,17 @@ gelman.diag(fit.mcmc[,parameterstoplot])</code></pre>
 <pre><code>## Potential scale reduction factors:
 ## 
 ##          Point est. Upper C.I.
-## ALPHA          1.00       1.02
-## BETA           1.00       1.00
-## THETA[1]       1.06       1.11
-## THETA[2]       1.06       1.23
-## THETA[3]       1.10       1.18
-## SIGMA[1]       1.01       1.01
+## ALPHA          1.04       1.18
+## BETA           1.13       1.47
+## THETA[1]       1.05       1.22
+## THETA[2]       1.00       1.00
+## THETA[3]       1.09       1.32
+## SIGMA[1]       1.03       1.14
 ## SIGMA[2]       1.00       1.00
 ## 
 ## Multivariate psrf
 ## 
-## 1.06</code></pre>
+## 1.19</code></pre>
 <pre class="r"><code>summary(fit.mcmc)</code></pre>
 <pre><code>## 
 ## Iterations = 6001:18500
@@ -570,29 +570,269 @@ gelman.diag(fit.mcmc[,parameterstoplot])</code></pre>
 ## 1. Empirical mean and standard deviation for each variable,
 ##    plus standard error of the mean:
 ## 
-##              Mean       SD  Naive SE Time-series SE
-## ALPHA     0.30956 0.028378 1.795e-04      0.0039582
-## BETA      1.38377 0.083808 5.301e-04      0.0146045
-## SIGMA[1]  0.51010 0.040852 2.584e-04      0.0040728
-## SIGMA[2]  0.09887 0.008205 5.189e-05      0.0002818
-## THETA[1]  1.98791 0.036404 2.302e-04      0.0051939
-## THETA[2]  4.39841 0.007598 4.805e-05      0.0009763
-## THETA[3] -2.73752 0.038146 2.413e-04      0.0081894
+##             Mean       SD  Naive SE Time-series SE
+## ALPHA     0.3043 0.028276 1.788e-04      0.0033605
+## BETA      1.1670 0.059774 3.780e-04      0.0083758
+## SIGMA[1]  0.4948 0.039986 2.529e-04      0.0038261
+## SIGMA[2]  0.1027 0.008296 5.247e-05      0.0002707
+## THETA[1]  1.9853 0.040661 2.572e-04      0.0067840
+## THETA[2]  4.3953 0.007546 4.773e-05      0.0009801
+## THETA[3] -2.8142 0.035230 2.228e-04      0.0068832
 ## 
 ## 2. Quantiles for each variable:
 ## 
-##              2.5%      25%      50%     75%   97.5%
-## ALPHA     0.25573  0.28820  0.31225  0.3306  0.3587
-## BETA      1.22543  1.32381  1.38625  1.4421  1.5474
-## SIGMA[1]  0.44104  0.48123  0.50587  0.5350  0.6004
-## SIGMA[2]  0.08465  0.09306  0.09827  0.1040  0.1167
-## THETA[1]  1.92687  1.96308  1.98419  2.0085  2.0747
-## THETA[2]  4.38357  4.39280  4.39845  4.4039  4.4127
-## THETA[3] -2.81865 -2.75740 -2.73319 -2.7133 -2.6634</code></pre>
+##              2.5%     25%     50%     75%   97.5%
+## ALPHA     0.24819  0.2844  0.3047  0.3242  0.3590
+## BETA      1.06230  1.1235  1.1627  1.2052  1.2934
+## SIGMA[1]  0.42391  0.4658  0.4920  0.5214  0.5782
+## SIGMA[2]  0.08759  0.0970  0.1023  0.1080  0.1201
+## THETA[1]  1.91231  1.9539  1.9859  2.0124  2.0653
+## THETA[2]  4.37875  4.3908  4.3956  4.4003  4.4092
+## THETA[3] -2.89358 -2.8369 -2.8134 -2.7891 -2.7485</code></pre>
 <pre class="r"><code>traceplot(fit.mcmc)</code></pre>
 <p><img src="buoro_files/figure-html/unnamed-chunk-16-1.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-2.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-3.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-4.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-5.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-6.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-7.png" width="672" /></p>
 <pre class="r"><code>densplot(fit.mcmc)</code></pre>
 <p><img src="buoro_files/figure-html/unnamed-chunk-17-1.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-2.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-3.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-4.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-5.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-6.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-7.png" width="672" /></p>
+</div>
+<div id="case-study-2-coûts-de-la-maturation-et-la-migration-pour-la-survie-une-approche-théorique" class="section level2">
+<h2>Case study 2: Coûts de la maturation et la migration pour la survie : une approche théorique</h2>
+<pre class="r"><code>library(rjags) #here Jags 4.10
+library(coda)</code></pre>
+<p>Load dataset. Data from F. Courbet and F. Lefevre - INRAE URFM. Simulation castanea from H. Davi - INRAE URFM</p>
+<pre class="r"><code>data &lt;- read.csv(&quot;dat/Dataset_cedrus_atlantica.csv&quot;,header=T,sep=&quot;;&quot;)</code></pre>
+<p>Create JAGS model file</p>
+<pre class="r"><code>cat(&quot;
+    model{
+        
+        ##prior for the mod1 mod 2 selection 
+        Y ~ dbern(pY)
+        pY ~dunif(0,1)
+        
+        ##a priori distribution
+        ##some are for each density stands with [1] and [2]
+        gamma[1] ~ dnorm(0,0.001)
+        gamma[2] ~ dnorm(0,0.001)
+        tau_BAI &lt;- 1/(sd_BAI*sd_BAI) 
+        sd_BAI ~ dunif(0,10)
+
+        PG_bar ~ dnorm(0,0.0001)
+        tauPG &lt;- 1/(sigma*sigma)
+        sigma ~ dunif(0,10)
+
+        tau_proba &lt;- 1/(sigma_proba*sigma_proba)
+        sigma_proba ~ dunif(0,50) 
+        
+        beta1[1] ~ dnorm(0,0.001)
+        beta2[1] ~ dnorm(0,0.001)
+        beta1[2] ~ dnorm(0,0.001)
+        beta2[2] ~ dnorm(0,0.001)
+        
+        beta0 &lt;- -10 #old version : beta0 ~ dnorm(0,0.001)
+        pr_X ~ dunif(0,1)
+
+        for (i in 1:3){
+            mu.eps[i] &lt;- 0
+        }
+        Id[1,1] &lt;- 1
+        Id[2,2] &lt;- 1
+        Id[3,3] &lt;- 1
+        Id[1,2] &lt;- 0
+        Id[1,3] &lt;- 0
+        Id[2,1] &lt;- 0
+        Id[2,3] &lt;- 0
+        Id[3,1] &lt;- 0
+        Id[3,2] &lt;- 0
+        inv.SIGMA ~ dwish(Id,4)
+        
+        for (i in 1:(Nind-1)){
+            eps[1:3,i] ~ dmnorm(mu.eps, inv.SIGMA)
+
+        }
+        eps[1,Nind] &lt;- -sum(eps[1,1:(Nind-1)])
+        eps[2,Nind] &lt;- -sum(eps[2,1:(Nind-1)])
+        eps[3,Nind] &lt;- -sum(eps[3,1:(Nind-1)])
+
+        
+        # estimating covariance (rho) among group predictors
+    SIGMA &lt;- inverse(inv.SIGMA)
+    for(k in 1:3){
+            for (k.prime in 1:3){
+                rho[k,k.prime] &lt;- SIGMA[k,k.prime]/sqrt(SIGMA[k,k]*SIGMA[k.prime,k.prime])
+            }
+    }   
+        
+
+        ##likelihood
+        for (i in 1:Nind){
+
+           
+            X[i,1] ~ dbern(pr_X)
+            IB[i,1] ~ dpois(X[i,1]*meanIB[i,1])
+            log(meanIB[i,1]) &lt;- (beta1[dens[i]] + Y*eps[2,i])*NPP[i,1]+(1-Y)*eps[2,i]
+            PG_bartot[i,1] ~ dnorm(PG_bar,tauPG)
+            logit(PG[i,1]) &lt;- PG_bartot[i,1]
+
+            for (t in 2:Ntemps){
+                
+                mu_BAI[i,t] &lt;- (gamma[dens[i]] + Y*eps[1,i])*NPP[i,t]+(1-Y)*eps[1,i]  
+                BAI[i,t] ~ dnorm(mu_BAI[i,t],tau_BAI)
+                
+                ##male cones -- male flower
+                PG_bartot[i,t] ~ dnorm(PG_bar,tauPG)
+                logit(PG[i,t]) &lt;- PG_bartot[i,t]
+                X[i,t] ~ dbern(pr_X)
+                IB[i,t] ~ dpois(X[i,t]*meanIB[i,t])
+                log(meanIB[i,t]) &lt;- (beta1[dens[i]] + Y*eps[2,i])*NPP[i,t] + (1-Y)*eps[2,i]
+
+                pr_IMC[i,t] &lt;- PG[i,t]*IB[i,t]
+                proba[i,t,1] &lt;- pnorm(10,pr_IMC[i,t],tau_proba)
+                proba[i,t,2] &lt;- pnorm(20,pr_IMC[i,t],tau_proba)-pnorm(10,pr_IMC[i,t],tau_proba)
+                proba[i,t,3] &lt;- pnorm(30,pr_IMC[i,t],tau_proba)-pnorm(20,pr_IMC[i,t],tau_proba)
+                proba[i,t,4] &lt;- pnorm(40,pr_IMC[i,t],tau_proba)-pnorm(30,pr_IMC[i,t],tau_proba)
+                proba[i,t,5] &lt;- 1-pnorm(40,pr_IMC[i,t],tau_proba)
+                M[i,t,1:5] ~ dmulti(proba[i,t,1:5],1)
+                
+                ###female cones -- female flowers (based on previous year and current year)
+                logit(pi[i,t]) &lt;- beta0 + (beta2[dens[i]] + Y*eps[3,i])*NPP[i,t] + (1-Y)*eps[3,i]
+                FC[i,t] ~ dpois(pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1])
+
+                ##simulating data
+                BAI.rep[i,t] ~ dnorm(mu_BAI[i,t],tau_BAI)
+                eval.BAI[i,t] &lt;- mu_BAI[i,t]
+                E.BAI[i,t] &lt;- pow(BAI[i,t]-eval.BAI[i,t],2)/(eval.BAI[i,t]+0.5)
+                Erep.BAI[i,t] &lt;- pow(BAI.rep[i,t]-eval.BAI[i,t],2)/(eval.BAI[i,t]+0.5)
+                
+                M.rep[i,t,1:5] ~ dmulti(proba[i,t,1:5],1)
+                eval.M[i,t,1:5] &lt;- proba[i,t,1:5]
+                E.M1[i,t] &lt;- pow(-M[i,t,1]+eval.M[i,t,1],2)     #/(eval.M[i,t,1]+0.5)
+                Erep.M1[i,t] &lt;- pow(-M.rep[i,t,1]+eval.M[i,t,1],2)  #/(eval.M[i,t,1]+0.5)
+                E.M2[i,t] &lt;- pow(-M[i,t,2]+eval.M[i,t,2],2)     #/(eval.M[i,t,2]+0.5)
+                Erep.M2[i,t] &lt;- pow(-M.rep[i,t,2]+eval.M[i,t,2],2)  #/(eval.M[i,t,2]+0.5)
+                E.M3[i,t] &lt;- pow(-M[i,t,3]+eval.M[i,t,3],2)     #/(eval.M[i,t,3]+0.5)
+                Erep.M3[i,t] &lt;- pow(-M.rep[i,t,3]+eval.M[i,t,3],2)  #/(eval.M[i,t,3]+0.5)
+                E.M4[i,t] &lt;- pow(-M[i,t,4]+eval.M[i,t,4],2)     #/(eval.M[i,t,4]+0.5)
+                Erep.M4[i,t] &lt;- pow(-M.rep[i,t,4]+eval.M[i,t,4],2)  #/(eval.M[i,t,4]+0.5)
+                E.M5[i,t] &lt;- pow(-M[i,t,5]+eval.M[i,t,5],2)     #/(eval.M[i,t,5]+0.5)
+                Erep.M5[i,t] &lt;- pow(-M.rep[i,t,5]+eval.M[i,t,5],2)  #/(eval.M[i,t,5]+0.5)
+                                
+                FC.rep[i,t] ~ dpois(pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1])
+                eval.FC[i,t] &lt;- pi[i,t]*(1-PG[i,t-1])*meanIB[i,t-1]*X[i,t-1]
+                E.FC[i,t] &lt;- pow(FC[i,t]-eval.FC[i,t],2)/(eval.FC[i,t]+0.5)
+                Erep.FC[i,t] &lt;- pow(FC.rep[i,t]-eval.FC[i,t],2)/(eval.FC[i,t]+0.5)
+                
+            }
+        }
+
+        ##simulating data: needed for model validation (see model evaluation in SI)
+        fit.BAI &lt;- sum(E.BAI[,2:8])
+        fitrep.BAI &lt;- sum(Erep.BAI[,2:8])
+        fit.M1 &lt;- sum(E.M1[,4:7])/(Nind*4)
+        fitrep.M1 &lt;- sum(Erep.M1[,4:7])/(Nind*4)
+        fit.M2 &lt;- sum(E.M2[,4:7])/(Nind*4)
+        fitrep.M2 &lt;- sum(Erep.M2[,4:7])/(Nind*4)
+        fit.M3 &lt;- sum(E.M3[,4:7])/(Nind*4)
+        fitrep.M3 &lt;- sum(Erep.M3[,4:7])/(Nind*4)
+        fit.M4 &lt;- sum(E.M4[,4:7])/(Nind*4)
+        fitrep.M4 &lt;- sum(Erep.M4[,4:7])/(Nind*4)
+        fit.M5 &lt;- sum(E.M5[,4:7])/(Nind*4)
+        fitrep.M5 &lt;- sum(Erep.M5[,4:7])/(Nind*4)
+        fit.FC &lt;- sum(E.FC[,4:7])
+        fitrep.FC &lt;- sum(Erep.FC[,4:7])
+        
+    }
+&quot;, file=&quot;Bayesian_model_studycase.jags&quot;)</code></pre>
+<p>define and convert observations individual, year and obs</p>
+<pre class="r"><code>Nind &lt;- length(unique(data$tree_ID))
+Ntemps &lt;- length(unique(data$year))
+castNPP&lt;-matrix(data$resources_NPP_castanea,ncol=Ntemps,byrow=T)
+castNPP &lt;- castNPP/max(castNPP) #range(1/(1+exp(-(0+0*as.vector(castNPP)))))
+
+BAI &lt;- matrix(data$BAI_growth,ncol=Ntemps,byrow=T)
+M &lt;- matrix(data$pollen_index,ncol=Ntemps,byrow=T)
+FC &lt;- matrix(data$cone_count,ncol=Ntemps,byrow=T)</code></pre>
+<p>For density</p>
+<pre class="r"><code>dens &lt;-matrix(data$density_plot,ncol=Ntemps,byrow=T)
+dens &lt;- as.numeric(as.factor(dens[,1]))</code></pre>
+<p>Convert pollen dataset</p>
+<pre class="r"><code>Mmatrice &lt;- array(NA,dim=c(nrow(M),ncol(M),5))
+Mmatrice[,,1] &lt;- (M==0)+0
+Mmatrice[,,2] &lt;- (M==1)+0
+Mmatrice[,,3] &lt;- (M==2)+0
+Mmatrice[,,4] &lt;- (M==3)+0
+Mmatrice[,,5] &lt;- (M==4)+0
+
+X &lt;- ((M+cbind(FC[,-1],rep(NA,Nind)))&gt;0)+0
+Xinit &lt;- matrix(NA,ncol=ncol(X),nrow=nrow(X))
+Xinit[,3] &lt;- (FC[,4]&gt;0)+0 #to avoid problem non numerical initial values</code></pre>
+<p>Model implementation (can take an hour (with Intel Xeon CPU E3-1240 3.50GHz, memory system 16G))</p>
+<pre class="r"><code>n.chains&lt;-3
+n.iter&lt;-100000
+n.burn&lt;-100000
+n.thin&lt;-100
+
+# quicker run, for illustration purpose
+n.chains&lt;-3
+n.iter&lt;-1000
+n.burn&lt;-100
+n.thin&lt;-2
+
+#check time begining
+time0=Sys.time()
+
+########################
+#run model and select parameters of interest
+modele &lt;- jags.model(file=&quot;Bayesian_model_studycase.jags&quot;, 
+                     data=list(Nind=Nind,Ntemps=Ntemps,BAI=BAI,M=Mmatrice,FC=FC,NPP=castNPP,X=X,dens=dens), 
+                     inits=list(PG_bartot=matrix(0,ncol=Ntemps,nrow=Nind),X=Xinit), 
+                     n.chains=n.chains, quiet=FALSE)</code></pre>
+<pre><code>## Compiling model graph
+##    Resolving undeclared variables
+##    Allocating nodes
+## Graph information:
+##    Observed stochastic nodes: 1278
+##    Unobserved stochastic nodes: 3492
+##    Total graph size: 45561
+## 
+## Initializing model</code></pre>
+<pre><code>## Warning in jags.model(file = &quot;Bayesian_model_studycase.jags&quot;, data = list(Nind =
+## Nind, : Adaptation incomplete</code></pre>
+<pre class="r"><code>update(modele, n.iter = n.burn)
+RES &lt;- coda.samples(model = modele, 
+                    variable.names = c(&quot;pY&quot;,&quot;Y&quot;, &quot;gamma&quot;,&quot;sd_BAI&quot;,&quot;pr_X&quot;,&quot;PG_bar&quot;,&quot;PG&quot;,&quot;sigma&quot;,&quot;beta0&quot;,&quot;beta1&quot;,&quot;beta2&quot;,&quot;rho&quot;,&quot;SIGMA&quot;,&quot;eps&quot;,&quot;fit.BAI&quot;,&quot;fitrep.BAI&quot;,&quot;fit.M1&quot;,&quot;fitrep.M1&quot;,&quot;fit.M2&quot;,&quot;fitrep.M2&quot;,&quot;fit.M3&quot;,&quot;fitrep.M3&quot;,&quot;fit.M4&quot;,&quot;fitrep.M4&quot;,&quot;fit.M5&quot;,&quot;fitrep.M5&quot;,&quot;fit.FC&quot;,&quot;fitrep.FC&quot;,&quot;sigma_proba&quot;,&quot;FC.rep&quot;,&quot;BAI.rep&quot;),
+                    n.iter = n.iter,
+                    thin = n.thin)</code></pre>
+<pre><code>## NOTE: Stopping adaptation</code></pre>
+<pre class="r"><code>print(Sys.time()-time0)</code></pre>
+<pre><code>## Time difference of 51.91246 secs</code></pre>
+<p>Short check model</p>
+<pre class="r"><code>#select the 3 chains 
+C1 &lt;- as.matrix(RES[[1]])
+C2 &lt;- as.matrix(RES[[2]])
+C3 &lt;- as.matrix(RES[[3]])
+plot(C1[,&quot;rho[2,3]&quot;],type=&quot;l&quot;)
+lines(C2[,&quot;rho[2,3]&quot;],col=2)
+lines(C3[,&quot;rho[2,3]&quot;],col=3)</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;rho[1,2]&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-2.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;rho[1,3]&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-3.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;rho[2,3]&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-4.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;pr_X&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-5.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;sigma_proba&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-6.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;sigma&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-7.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;PG_bar&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-8.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;sd_BAI&quot;])</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-9.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;gamma[1]&quot;]) #density 1 </code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-10.png" width="672" /></p>
+<pre class="r"><code>plot(RES[,&quot;gamma[2]&quot;]) #plot density 2</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-25-11.png" width="672" /></p>
 </div>
 
 
