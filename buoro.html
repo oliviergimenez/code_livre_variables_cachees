@@ -390,20 +390,209 @@ div.tocify {
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
+<div id="case-study-1-coûts-de-la-maturation-et-la-migration-pour-la-survie-une-approche-théorique" class="section level2">
+<h2>Case study 1: Coûts de la maturation et la migration pour la survie : une approche théorique</h2>
+<p>Packages &amp; functions</p>
+<pre class="r"><code>require(rjags)</code></pre>
+<pre><code>## Loading required package: rjags</code></pre>
+<pre><code>## Loading required package: coda</code></pre>
+<pre><code>## Linked to JAGS 4.3.0</code></pre>
+<pre><code>## Loaded modules: basemod,bugs</code></pre>
+<pre class="r"><code>library(coda)</code></pre>
+<div id="data-simulation" class="section level3">
+<h3>Data simulation</h3>
+<p>Parameter values.</p>
+<pre class="r"><code>N=500 # number of individuals</code></pre>
+<p>Parameters values to simulate evolutionary trade-offs. Le paramètre alpha contrôle le coût de la maturation pour la survie, tandis que le paramètre beta celui du coût de la migration (croissance) pour la survie. Les valeurs correspondent aux valeurs attendus des paramètres à l’échelle du logarithme naturel. Ainsi si ces paramètres ne sont pas différents de 1, il n’y a pas de compromis ; si les coefficients sont inférieurs à 1, il y a un compromis négatif tandis que s’ils sont supérieurs à 1, il y a un compromis positif.</p>
+<p>SCENARIO A: cost of maturation and migration for survival</p>
+<pre class="r"><code>ALPHA = 0.3; # cost of maturation for survival
+BETA = 0.7; #cost of migration for survival
+THETA = c(2, 4.4, -3.25) # THRESHOLDS</code></pre>
+<p>SCENARIO B: no trade-offs</p>
+<pre class="r"><code>ALPHA = 1 # no cost of maturation for survival
+BETA = 1 # no cost of migration for survival
+THETA = c(2, 4.4, -2.5) # THRESHOLDS</code></pre>
+<p>SCENARIO C: cost of maturation for survival and positive effect of migration on survival</p>
+<pre class="r"><code>ALPHA = 0.3 # cost of maturation for survival
+BETA =  1.3; # advantage of migration for survival
+THETA=c(2, 4.4, -2.75) # THRESHOLDS</code></pre>
+<pre class="r"><code>I=array(,dim=c(N,3)); # Binary variables of life history decisions, maturation, migration and survival respectively
+X=array(,dim=c(N,2)); # Observable traits (weight and size)
+Z=array(,dim=c(N,3)) # Proximate cues (latent variable)
+SIGMA=NULL</code></pre>
+<p>SIZE/WEIGHT RELATIONSHIP</p>
+<pre class="r"><code>mu_X=c(NA,80); # mu_X[2]: average size of individuals
+a &lt;- 0.00001;b &lt;- 3 # coeffcients values of the weight-size relationship
+SIGMA_X=c(0.2,12) # standard deviation for phenotypes size and weight
+
+X[,2]&lt;-rnorm(N,mu_X[2],SIGMA_X[2]) # Size
+mu_X1 &lt;- log(a) + b * log(X[,2]) # weight-size relationship
+X[,1] &lt;- rlnorm(N,mu_X1,SIGMA_X[1]) # Weight</code></pre>
+<p>Décision de maturation</p>
+<pre class="r"><code>SIGMA=c(0.5,0.1) ## residual standard deviation
+Z[,1] &lt;- rnorm(N, log(X[,1]),SIGMA[1]) # Reserve status
+I[,1] &lt;- ifelse(Z[,1]&gt;=THETA[1], 1, 0)</code></pre>
+<p>Décision de migration</p>
+<pre class="r"><code>SIGMA=c(0.5,0.1) ## residual variance
+Z[,2] &lt;-rnorm(N, log(X[,2]),SIGMA[2]) # Structure status
+I[,2] &lt;- ifelse(Z[,2]&gt;=THETA[2], 1, 0)</code></pre>
+<p>Survie</p>
+<pre class="r"><code>Z[,3]&lt;-(Z[,1] - Z[,2]) + log(ALPHA)*I[,1] + log(BETA)*I[,2]
+I[,3] &lt;- ifelse(Z[,3]&gt;=THETA[3], 1, 0)</code></pre>
 </div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
+</div>
+<div id="data" class="section level2">
+<h2>Data</h2>
+<pre class="r"><code>data&lt;-list(
+N=N
+,Y=I # phenotypes (0/1)
+,X=X # observable cues (e.g. weight, size)
+)</code></pre>
+</div>
+<div id="model" class="section level2">
+<h2>Model</h2>
+<pre class="r"><code>write(&quot;
+model {
+   for (i in 1:N) {
+
+      ## Proximate cues ##
+      Z[i,1]~dnorm(log(X[i,1]), tau[1]) # Reserve
+      Z[i,2]~dnorm(log(X[i,2]), tau[2]) # Structure
+
+      ## Maturing decision
+      Y[i,1]~dinterval(Z[i,1],THETA[1])
+
+      ## Migration decision:
+      Y[i,2]~dinterval(Z[i,2],THETA[2])
+
+      ## Survival:
+      Y[i,3]~dinterval(Z[i,1]-Z[i,2] + (log(ALPHA) * Y[i,1]) + (log(BETA) * Y[i,2]),THETA[3])
+
+} # END OF THE LOOP i
+
+  ### PRIORS ####
+  ALPHA~dgamma(0.5, 0.5)
+  BETA~dgamma(0.5, 0.5)
+
+  ## Thresholds:
+  for (j in 1:3){THETA[j]~dnorm(0, 0.001)} # end loop j
+
+  ## Variance
+  for (j in 1:2){
+    tau[j]&lt;-pow(SIGMA[j],-2) # precision
+    SIGMA[j]~dunif(0,100) # sd
+  } # end loop j
+
+} # END OF THE MODEL
+&quot;, &quot;LEAM.R&quot;)</code></pre>
+</div>
+<div id="analysis" class="section level2">
+<h2>Analysis</h2>
+<pre class="r"><code>parameters=c(&quot;ALPHA&quot;,&quot;BETA&quot;,&quot;THETA&quot;,&quot;SIGMA&quot;)
+
+### /!\ Warning: To illustrate, here we use simulated values as initial values.
+## but initial values can be generated randomly, they must however be consistent: Z.inits[i] &gt; THETA.inits[i] if Y[i]=1
+
+inits&lt;-function(){
+  list(
+  &#39;Z&#39;=Z[,1:2]
+  ,&#39;THETA&#39;=THETA,
+  &#39;ALPHA&#39;=ALPHA,
+  &#39;BETA&#39;=BETA,
+  &#39;SIGMA&#39;=SIGMA)
+  }
+
+nChains = 2 # Number of chains to run.
+adaptSteps = 1000 # Number of steps to &quot;tune&quot; the samplers.
+burnInSteps = 5000 # Number of steps to &quot;burn-in&quot; the samplers.
+numSavedSteps=25000 # Total number of steps in chains to save.
+thinSteps=1 # Number of steps to &quot;thin&quot; (1=keep every step).
+nPerChain = ceiling( ( numSavedSteps * thinSteps ) / nChains ) # Steps per chain.</code></pre>
+<p>Compile &amp; adapt</p>
+<pre class="r"><code>### Start of the run ###
+start.time = Sys.time(); cat(&quot;Start of the run\n&quot;);</code></pre>
+<pre><code>## Start of the run</code></pre>
+<pre class="r"><code>## Compile &amp; adapt
+# Create, initialize, and adapt the model:
+jagsfit=jags.model(&#39;LEAM.R&#39;,data,inits,n.chains=nChains,n.adapt = adaptSteps)</code></pre>
+<pre><code>## Compiling model graph
+##    Resolving undeclared variables
+##    Allocating nodes
+## Graph information:
+##    Observed stochastic nodes: 1500
+##    Unobserved stochastic nodes: 1007
+##    Total graph size: 5522
+## 
+## Initializing model</code></pre>
+<pre class="r"><code># Burn-in:
+cat( &quot;Burning in the MCMC chain…\n&quot; )</code></pre>
+<pre><code>## Burning in the MCMC chain…</code></pre>
+<pre class="r"><code>#jagsfit$recompile()
+update(jagsfit, n.iter=burnInSteps,progress.bar=&quot;text&quot;)
+
+# The saved MCMC chain:
+cat( &quot;Sampling final MCMC chain…\n&quot; )</code></pre>
+<pre><code>## Sampling final MCMC chain…</code></pre>
+<pre class="r"><code>fit.mcmc&lt;-coda.samples(jagsfit,variable.names=parameters,
+                       n.iter=nPerChain, thin=thinSteps)
+
+# duration of the run
+end.time = Sys.time()
+elapsed.time = difftime(end.time, start.time, units=&#39;mins&#39;)
+cat(&quot;Sample analyzed after &quot;, elapsed.time, &#39; minutes\n&#39;)</code></pre>
+<pre><code>## Sample analyzed after  0.8881788  minutes</code></pre>
+</div>
+<div id="examine-the-results" class="section level2">
+<h2>Examine the results</h2>
+<pre class="r"><code>parameterstoplot=c(&quot;ALPHA&quot;,&quot;BETA&quot;,&quot;THETA[1]&quot;,&quot;THETA[2]&quot;,&quot;THETA[3]&quot;,&quot;SIGMA[1]&quot;,&quot;SIGMA[2]&quot;)
+gelman.diag(fit.mcmc[,parameterstoplot])</code></pre>
+<pre><code>## Potential scale reduction factors:
+## 
+##          Point est. Upper C.I.
+## ALPHA          1.00       1.02
+## BETA           1.00       1.00
+## THETA[1]       1.06       1.11
+## THETA[2]       1.06       1.23
+## THETA[3]       1.10       1.18
+## SIGMA[1]       1.01       1.01
+## SIGMA[2]       1.00       1.00
+## 
+## Multivariate psrf
+## 
+## 1.06</code></pre>
+<pre class="r"><code>summary(fit.mcmc)</code></pre>
+<pre><code>## 
+## Iterations = 6001:18500
+## Thinning interval = 1 
+## Number of chains = 2 
+## Sample size per chain = 12500 
+## 
+## 1. Empirical mean and standard deviation for each variable,
+##    plus standard error of the mean:
+## 
+##              Mean       SD  Naive SE Time-series SE
+## ALPHA     0.30956 0.028378 1.795e-04      0.0039582
+## BETA      1.38377 0.083808 5.301e-04      0.0146045
+## SIGMA[1]  0.51010 0.040852 2.584e-04      0.0040728
+## SIGMA[2]  0.09887 0.008205 5.189e-05      0.0002818
+## THETA[1]  1.98791 0.036404 2.302e-04      0.0051939
+## THETA[2]  4.39841 0.007598 4.805e-05      0.0009763
+## THETA[3] -2.73752 0.038146 2.413e-04      0.0081894
+## 
+## 2. Quantiles for each variable:
+## 
+##              2.5%      25%      50%     75%   97.5%
+## ALPHA     0.25573  0.28820  0.31225  0.3306  0.3587
+## BETA      1.22543  1.32381  1.38625  1.4421  1.5474
+## SIGMA[1]  0.44104  0.48123  0.50587  0.5350  0.6004
+## SIGMA[2]  0.08465  0.09306  0.09827  0.1040  0.1167
+## THETA[1]  1.92687  1.96308  1.98419  2.0085  2.0747
+## THETA[2]  4.38357  4.39280  4.39845  4.4039  4.4127
+## THETA[3] -2.81865 -2.75740 -2.73319 -2.7133 -2.6634</code></pre>
+<pre class="r"><code>traceplot(fit.mcmc)</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-16-1.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-2.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-3.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-4.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-5.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-6.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-16-7.png" width="672" /></p>
+<pre class="r"><code>densplot(fit.mcmc)</code></pre>
+<p><img src="buoro_files/figure-html/unnamed-chunk-17-1.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-2.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-3.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-4.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-5.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-6.png" width="672" /><img src="buoro_files/figure-html/unnamed-chunk-17-7.png" width="672" /></p>
 </div>
 
 
