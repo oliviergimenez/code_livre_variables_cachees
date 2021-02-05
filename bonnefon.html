@@ -9,9 +9,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
+<meta name="author" content="J. Papaïx, L. Roques, S. Soubeyrand, O. Bonnefon, E. Klein, J. Louvrier, E. Walker" />
 
 
-<title>bonnefon.utf8</title>
+<title>Inférence de modèles mécanistes en écologie spatiale par une approche mécanistico-statistique</title>
 
 <script src="site_libs/header-attrs-2.5/header-attrs.js"></script>
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
@@ -383,25 +384,629 @@ div.tocify {
 
 
 
+<h1 class="title toc-ignore">Inférence de modèles mécanistes en écologie spatiale par une approche mécanistico-statistique</h1>
+<h4 class="author">J. Papaïx, L. Roques, S. Soubeyrand, O. Bonnefon, E. Klein, J. Louvrier, E. Walker</h4>
 
 </div>
 
 
-<p>Du code R qui va bien.</p>
-<div id="trajectoire" class="section level2">
-<h2>Trajectoire</h2>
-<p>Les ingrédients</p>
-<ol style="list-style-type: decimal">
-<li>Huile d’olive</li>
-<li>Citron</li>
-<li>Sel</li>
-<li>Poivre</li>
-</ol>
-</div>
-<div id="mouvements" class="section level2">
-<h2>Mouvements</h2>
-<p>Au minimum il faut :</p>
-</div>
+<p>Load packages.</p>
+<pre class="r"><code>library(raster)
+library(sp)
+library(rgeos)
+library(deSolve)
+library(Matrix)
+library(maptools)
+library(unmarked)
+library(R2OpenBUGS)
+library(coda)
+library(plotrix)</code></pre>
+<p>Load and format data.</p>
+<pre class="r"><code>y &lt;- as.matrix(read.table(&quot;dat/dony.txt&quot;))
+nsite &lt;- ncol(y)
+HD_Q &lt;- scan(&quot;dat/HD.txt&quot;, quiet = T)
+forest_Q &lt;- scan(&quot;dat/forest.txt&quot;,quiet=T)
+
+HD_simuls &lt;- runif(100,min(HD_Q), max(HD_Q))
+forest_simuls &lt;- runif(100,min(forest_Q), max(forest_Q))
+
+NsiteOBS &lt;- 100 
+resolx &lt;- 10 
+resoly &lt;- 10 
+
+# build study area
+domaine0 &lt;- rbind(c(-50,-50),c(-50,50),c(50,50),c(50,-50)) # so we can have 28 squares of length 10
+r= raster(ncols=resolx,nrows=resoly,ext=extent(min(domaine0[,1]),max(domaine0[,1]),min(domaine0[,2]),max(domaine0[,2])))
+domaine &lt;- as(r, &#39;SpatialPolygons&#39;)
+
+# observed sites
+coordx = seq(min((domaine0[,1])-(min((domaine0[,1]))/sqrt(NsiteOBS))),
+             max((domaine0[,1])-(max((domaine0[,1]))/sqrt(NsiteOBS))), length = sqrt(NsiteOBS))
+coordy = seq(min((domaine0[,1])-(min((domaine0[,1]))/sqrt(NsiteOBS))),
+             max((domaine0[,1])-(max((domaine0[,1]))/sqrt(NsiteOBS))), length = sqrt(NsiteOBS))
+
+OBSsites &lt;- expand.grid(coordx,coordy)
+dataX &lt;- OBSsites[,1]
+dataY &lt;- OBSsites[,2]
+
+# get pixel id and area over which we need to integrate
+Robs &lt;- (max((domaine0[,1]))/sqrt(NsiteOBS)) 
+OBS &lt;- NULL
+for (i in 1:length(dataX)){
+  rcenter &lt;-Robs
+  coords = matrix(c(dataX[i]-rcenter, dataY[i]-rcenter,
+                    dataX[i]-rcenter, dataY[i]+rcenter,
+                    dataX[i]+rcenter, dataY[i]+rcenter,
+                    dataX[i]+rcenter, dataY[i]-rcenter,
+                    dataX[i]-rcenter, dataY[i]-rcenter), 
+                  ncol = 2, byrow = TRUE)
+  P1 = Polygon(coords)
+  polyOBS &lt;- list()
+  polyOBS[[1]] &lt;- Polygons(list(P1), ID = 1)
+  polyOBS &lt;- SpatialPolygons(polyOBS, proj4string= CRS(proj4string(domaine)))
+  polyIN &lt;- intersect(polyOBS, domaine)
+  areas &lt;- data.frame(area=sapply(polyIN@polygons, FUN=function(x) {slot(x, &#39;area&#39;)}))
+  rownames(areas) &lt;- sapply(polyIN@polygons, FUN=function(x) {slot(x, &#39;ID&#39;)})
+  numPIX &lt;- as.numeric(matrix(unlist(strsplit(rownames(areas),split=&quot; &quot;)),ncol=2,byrow=T)[,2])
+  OBS &lt;- rbind(OBS,cbind(rep(i,length(numPIX)),numPIX,areas$area))
+}
+colnames(OBS) &lt;- c(&quot;OBSsite&quot;,&quot;SIMsite&quot;,&quot;area&quot;)</code></pre>
+<pre class="r"><code>plot(domaine)</code></pre>
+<p><img src="bonnefon_files/figure-html/domain-1.png" width="672" /></p>
+<pre class="r"><code>for (i in 1:length(dataX)){
+  rcenter &lt;-Robs
+  coords = matrix(c(dataX[i]-rcenter, dataY[i]-rcenter,
+                    dataX[i]-rcenter, dataY[i]+rcenter,
+                    dataX[i]+rcenter, dataY[i]+rcenter,
+                    dataX[i]+rcenter, dataY[i]-rcenter,
+                    dataX[i]-rcenter, dataY[i]-rcenter), 
+                  ncol = 2, byrow = TRUE)
+  P1 = Polygon(coords)
+  polyOBS &lt;- list()
+  polyOBS[[1]] &lt;- Polygons(list(P1), ID = 1)
+  polyOBS &lt;- SpatialPolygons(polyOBS, proj4string= CRS(proj4string(domaine)))
+  plot(polyOBS, add = T, pch = 24, border = &quot;blue&quot;, lwd = 2)
+}
+
+points(dataX,dataY,col=2,pch=16,cex=1.5)
+plot(domaine, add = T)</code></pre>
+<pre class="r"><code>OBS</code></pre>
+<pre><code>##        OBSsite SIMsite area
+##   [1,]       1      91  100
+##   [2,]       2      92  100
+##   [3,]       3      93  100
+##   [4,]       4      94  100
+##   [5,]       5      95  100
+##   [6,]       6      96  100
+##   [7,]       7      97  100
+##   [8,]       8      98  100
+##   [9,]       9      99  100
+##  [10,]      10     100  100
+##  [11,]      11      81  100
+##  [12,]      12      82  100
+##  [13,]      13      83  100
+##  [14,]      14      84  100
+##  [15,]      15      85  100
+##  [16,]      16      86  100
+##  [17,]      17      87  100
+##  [18,]      18      88  100
+##  [19,]      19      89  100
+##  [20,]      20      90  100
+##  [21,]      21      71  100
+##  [22,]      22      72  100
+##  [23,]      23      73  100
+##  [24,]      24      74  100
+##  [25,]      25      75  100
+##  [26,]      26      76  100
+##  [27,]      27      77  100
+##  [28,]      28      78  100
+##  [29,]      29      79  100
+##  [30,]      30      80  100
+##  [31,]      31      61  100
+##  [32,]      32      62  100
+##  [33,]      33      63  100
+##  [34,]      34      64  100
+##  [35,]      35      65  100
+##  [36,]      36      66  100
+##  [37,]      37      67  100
+##  [38,]      38      68  100
+##  [39,]      39      69  100
+##  [40,]      40      70  100
+##  [41,]      41      51  100
+##  [42,]      42      52  100
+##  [43,]      43      53  100
+##  [44,]      44      54  100
+##  [45,]      45      55  100
+##  [46,]      46      56  100
+##  [47,]      47      57  100
+##  [48,]      48      58  100
+##  [49,]      49      59  100
+##  [50,]      50      60  100
+##  [51,]      51      41  100
+##  [52,]      52      42  100
+##  [53,]      53      43  100
+##  [54,]      54      44  100
+##  [55,]      55      45  100
+##  [56,]      56      46  100
+##  [57,]      57      47  100
+##  [58,]      58      48  100
+##  [59,]      59      49  100
+##  [60,]      60      50  100
+##  [61,]      61      31  100
+##  [62,]      62      32  100
+##  [63,]      63      33  100
+##  [64,]      64      34  100
+##  [65,]      65      35  100
+##  [66,]      66      36  100
+##  [67,]      67      37  100
+##  [68,]      68      38  100
+##  [69,]      69      39  100
+##  [70,]      70      40  100
+##  [71,]      71      21  100
+##  [72,]      72      22  100
+##  [73,]      73      23  100
+##  [74,]      74      24  100
+##  [75,]      75      25  100
+##  [76,]      76      26  100
+##  [77,]      77      27  100
+##  [78,]      78      28  100
+##  [79,]      79      29  100
+##  [80,]      80      30  100
+##  [81,]      81      11  100
+##  [82,]      82      12  100
+##  [83,]      83      13  100
+##  [84,]      84      14  100
+##  [85,]      85      15  100
+##  [86,]      86      16  100
+##  [87,]      87      17  100
+##  [88,]      88      18  100
+##  [89,]      89      19  100
+##  [90,]      90      20  100
+##  [91,]      91       1  100
+##  [92,]      92       2  100
+##  [93,]      93       3  100
+##  [94,]      94       4  100
+##  [95,]      95       5  100
+##  [96,]      96       6  100
+##  [97,]      97       7  100
+##  [98,]      98       8  100
+##  [99,]      99       9  100
+## [100,]     100      10  100</code></pre>
+<p>Function that simulates data from mecastat model.</p>
+<pre class="r"><code>sim_mecastat &lt;- function(resol_sim, nyear, carrying_capacity, h, intR, betaR, betaRR, intD, betaD, betaDD){
+  
+  modLOUP &lt;- function(t,states,parms){
+    with(as.list(c(parms,states)),{
+      toto &lt;- paste0(&quot;U&quot;,1:(C*L))
+      U &lt;- unlist(mget(toto))
+      dU  &lt;- R * U * (1 - U / K) + (alpha * D2 %*% U) / (h * h)
+      names(dU)  &lt;- c(paste0(&quot;dU&quot;, seq(1:(C*L))))
+      res &lt;- dU
+      list(res)})
+  }
+  
+  U_matrix &lt;- matrix(0, ncol = resol_sim, nrow = resol_sim)
+  C &lt;- ncol(U_matrix)
+  L &lt;- nrow(U_matrix)
+  
+  # neighboring matrix
+  VOIS &lt;- matrix(0,ncol=C*L,nrow=C*L)
+  for (i in 1:L){
+    for (j in 1:C){
+      VOIS.tmp &lt;- matrix(0,ncol=C,nrow=L)
+      if((i-1)&gt;=1){VOIS.tmp[i-1,j] &lt;- 1}
+      if((i+1)&lt;=L){VOIS.tmp[i+1,j] &lt;- 1}
+      if((j-1)&gt;=1){VOIS.tmp[i,j-1] &lt;- 1}
+      if((j+1)&lt;=C){VOIS.tmp[i,j+1] &lt;- 1}
+      VOIS[(i-1)*C+j,] &lt;- as.vector(t(VOIS.tmp))
+    }
+  }
+  
+  # diffusion if all sites are equal 
+  M &lt;- diag(-apply(VOIS,1,sum))
+  for (i in 1:(C*L)){
+    M[i,VOIS[i,]==1] &lt;- 1
+  }
+  D2 &lt;- M
+  
+  # logistic growth rate
+  R &lt;- 1 / (1 + exp(-(intR + betaR * forest_simuls + betaRR * forest_simuls^2 )))
+  R &lt;- as.vector(t(round(R, digits = 2)))
+  
+  # diffusion
+  alpha &lt;- 1 / (1 + exp(-(intD + betaD * HD_simuls + betaDD * HD_simuls^2)))
+  
+  # parameters
+  parms &lt;- c(K = carrying_capacity, R = R, alpha = alpha, h = h, D2 = D2)
+  
+  # time
+  times &lt;- seq(0, nyear-1, by = 1) # nyears * 12 months
+  
+  # first cell(s) to be occupied for initial values
+  U_matrix[1,1] &lt;- nb_ind_init
+  # initial values
+  iniU &lt;- as.vector(t(U_matrix))
+  names(iniU) &lt;- c(paste0(&quot;U&quot;, seq(1:(C*L))))
+  inits &lt;- iniU
+  
+  # simulations
+  simul &lt;- ode(inits, times, modLOUP, parms, method=&quot;lsoda&quot;)
+  list(simul=simul,M=M)
+}</code></pre>
+<p>Function to fit mecastat wolf model to simulated data (possibly multiple times).</p>
+<pre class="r"><code>fit_mecastat &lt;- function(resol_fit, nyear, nsurvey, carrying_capacity, intR, betaR, betaRR, intD, betaD, betaDD, detection, nb_ind_init, tol_ode, h, nchains, nburn, niter, debug){
+  
+  #-------------------------- simulations ---------------------------- #
+  
+  # simulate site-specific abundance - latent states (1)
+  run_sim &lt;- sim_mecastat(resol_sim, nyear, carrying_capacity, h, intR, betaR, betaRR, intD, betaD, betaDD)
+  simul &lt;- run_sim$simul
+  M &lt;- run_sim$M
+  L &lt;- C &lt;- resol_fit # squared study area for simplicity here
+  
+  # extraction of lambdas 
+  lambda &lt;- simul[,grep(&quot;U&quot;,dimnames(simul)[[2]])]
+  
+  # simulate counts - latent process (2)
+  Ntot &lt;- rpois(length(lambda), lambda) # multipying by 10 the surface of h because 
+  # so far we were working with a rate but to 
+  # get a number of individuals per cell
+  dim(Ntot) &lt;- dim(lambda)
+  
+  # apply detection process - observation process
+  # to get the number of times the species has been detected at a site wihin a year, 
+  r &lt;- detection
+  ptemp &lt;- matrix(r, nrow = nyear, ncol = L*C)
+  pobs &lt;- 1-(1-ptemp)^Ntot
+  nocc &lt;- nb_survey
+  nsite &lt;- L*C
+  y &lt;- matrix(0, ncol = ncol(pobs), nrow = nrow(pobs))
+  for(i in 1:nrow(pobs)){
+    for(j in 1:ncol(pobs)){
+      y[i,j] &lt;- rbinom(1, nocc, pobs[i,j]) # apply nocc surveys
+    }
+  }
+  y &lt;- t(y)
+  
+  #-------------------------- inference ---------------------------- #
+  init_onesite &lt;- rep(0, nsite)
+  init_onesite[1] &lt;- nb_ind_init
+  
+  VOIS &lt;- matrix(0,ncol=C*L,nrow=C*L)
+  for (i in 1:L){
+    for (j in 1:C){
+      VOIS.tmp &lt;- matrix(0,ncol=C,nrow=L)
+      if((i-1)&gt;=1){VOIS.tmp[i-1,j] &lt;- 1}
+      if((i+1)&lt;=L){VOIS.tmp[i+1,j] &lt;- 1}
+      if((j-1)&gt;=1){VOIS.tmp[i,j-1] &lt;- 1}
+      if((j+1)&lt;=C){VOIS.tmp[i,j+1] &lt;- 1}
+      VOIS[(i-1)*C+j,] &lt;- as.vector(t(VOIS.tmp))
+    }
+  }
+  
+  M &lt;- diag(-apply(VOIS,1,sum))
+  for (i in 1:(C*L)){
+    M[i,VOIS[i,]==1] &lt;- 1
+  }
+  
+  # create list of data
+  x.data &lt;- list(
+    y=y,
+    nsite=nsite,
+    nyear=nyear,
+    v=nocc,
+    forest=forest_simuls,
+    HD=HD_simuls,
+    DD=M,
+    h=h,
+    origin = 0,
+    tol = tol_ode, 
+    init = init_onesite,
+    tgrid = seq(0,nyear-1,by=1))
+    
+  # model
+  sink(&quot;simul_cov_quadra.txt&quot;)
+  cat(&quot;
+      model{
+      # system of ODEs resolution
+      solution[1:nyear, 1:nsite] &lt;- ode(init[1:nsite], 
+      tgrid[1:nyear], 
+      D(C[1:nsite], t[nsite]), 
+      origin, 
+      tol) 
+      # abundance model
+      
+      for (i in 1:nsite){
+      for (j in 1:nsite){
+      DDbis[i,j] &lt;- DD[i,j]*alpha1[i]
+      
+      }
+      }
+      
+      for (i in 1:nsite){
+      # logistic growth + diffusion
+      D(C[i], t[i]) &lt;- rr[i] * C[i] * (1 - C[i] / KK) + inprod(DDbis[i,],C[]) / (h * h) 
+      logit(rr[i]) &lt;- a.rr + b1.rr * forest[i] + b2.rr * forest[i] * forest[i]  
+      logit(alpha1[i]) &lt;- a.D + b1.D * HD[i] + b2.D * HD[i] * HD[i] 
+      
+      }
+      
+      for (i in 1:nsite){
+      for (k in 1:nyear){
+      N[i,k] ~ dpois(solution[k,i]) 
+      }
+      }
+      # detection model
+      for (i in 1:nsite){
+      for (k in 1:nyear){
+      p[i,k] &lt;- 1 - pow(1 - r, N[i,k])
+      y[i,k] ~ dbin(p[i,k],v)
+      }
+      }
+      
+      r ~ dunif(0,1) # detection
+      KK ~ dnorm(5,1) # carrying capacity
+      a.rr ~ dnorm(0.5,1)T(0,10)
+      b1.rr ~ dnorm(0.5,1)T(0,10)
+      b2.rr ~ dnorm(0.5,1)T(0,10)
+      a.D ~ dnorm(2,1)T(0,10)
+      b1.D ~ dnorm(0.5,1)T(0,10)
+      b2.D ~ dnorm(0.3,1)T(0,10)
+
+      }
+      &quot;)
+  sink()
+    
+  # specifying the initial MCMC values
+  inits &lt;- function()list(
+    N = t(Ntot),
+    KK = carrying_capacity, 
+    a.rr = intR,
+    b1.rr = betaR,
+    b2.rr = betaRR,
+    a.D = intD,
+    b1.D = betaD,
+    b2.D = betaDD,
+    r = detection)
+  
+  # setting the parameters to be monitored
+  params &lt;- c(&quot;a.rr&quot;,&quot;b1.rr&quot;,&quot;b2.rr&quot;,&quot;a.D&quot;,&quot;b1.D&quot;,&quot;b2.D&quot;, &quot;KK&quot;,&quot;N&quot;,&quot;r&quot;)
+  
+  # calling OpenBugs
+  OpenBUGS.pgm=&quot;C:/Program Files (x86)/OpenBUGS/OpenBUGS323/OpenBUGS.exe&quot;
+  
+  ptm &lt;- proc.time()
+  wolf.sim &lt;- bugs(x.data, inits, model.file = &#39;simul_cov_quadra.txt&#39;,parameters= params,n.chains = nchains, n.burnin = nburn, n.iter = niter, OpenBUGS.pgm = OpenBUGS.pgm, debug= debug_switch, codaPkg=T)
+  
+  elapsed_time = proc.time() - ptm
+  elapsed_time 
+  res &lt;- read.bugs(wolf.sim)
+  
+  list(res=res)
+}</code></pre>
+<p>Simulation study.</p>
+<pre class="r"><code>resol_sim &lt;- resolx
+resol_fit &lt;- resolx
+nyear &lt;- 20
+carrying_capacity &lt;- 5
+intR = 0.4
+betaR = 0.4
+betaRR = 0.6
+intD = 2
+betaD = 0.5
+betaDD = 0.3
+detection &lt;- 0.8
+nb_survey &lt;- 4
+nb_ind_init &lt;- 1
+tol_ode &lt;- 1.0E-3
+h &lt;- 10
+nchains &lt;- 1 
+nburn &lt;- 2000 
+niter &lt;- 10000
+debug_switch &lt;- F
+
+# loop on number of simulations
+set.seed(13)
+
+H=100
+res &lt;- vector(&quot;list&quot;,H)
+
+estim.median &lt;- matrix(0,nrow=8,ncol=H)
+estim.25 &lt;- matrix(0,nrow=8,ncol=H)
+estim.975 &lt;- matrix(0,nrow=8,ncol=H)</code></pre>
+<p>Run simulations.</p>
+<pre class="r"><code>for(i in 1:H){
+  
+  # estimate parameters of mecastat wolf model
+  #res[[i]] &lt;- fit_mecastat(resol_fit, nyear, nsurvey, carrying_capacity, intR, betaR, betaRR, intD, betaD, betaDD, detection, nb_ind_init, tol_ode, h, nchains, nburn, niter, debug_switch)
+  
+  estim.median[,i] &lt;- c(median(as.mcmc(res[[i]]$res[,&#39;KK&#39;])), median(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;])),median(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;])),median(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;])), median(as.mcmc(res[[i]]$res[,&#39;r&#39;])), median(as.mcmc(res[[i]]$res[,&quot;a.D&quot;])),  median(as.mcmc(res[[i]]$res[,&quot;b1.D&quot;])), median(as.mcmc(res[[i]]$res[,&quot;b2.D&quot;])))
+  estim.25[,i]&lt;- c(quantile(as.mcmc(res[[i]]$res[,&#39;KK&#39;]),probs=2.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;]),probs=2.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;]),probs=2.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;]),probs=2.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;r&#39;]),probs=2.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;a.D&#39;]),probs=2.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;b1.D&#39;]),probs=2.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;b2.D&#39;]),probs=2.5/100))
+  estim.975[,i] &lt;- c(quantile(as.mcmc(res[[i]]$res[,&#39;KK&#39;]),probs=97.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;]),probs=97.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;]),probs=97.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;]),probs=97.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;r&#39;]),probs=97.5/100),quantile(as.mcmc(res[[i]]$res[,&#39;a.D&#39;]),probs=97.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;b1.D&#39;]),probs=97.5/100), quantile(as.mcmc(res[[i]]$res[,&#39;b2.D&#39;]),probs=97.5/100))
+  
+  print(i)
+}
+
+save(res, estim.median, estim.25, estim.975, file = &#39;resHPHR_covs2_quadra_10000it_prior_inf4.RData&#39;)</code></pre>
+<p>Use <a href="https://mycore.core-cloud.net/index.php/s/uEegeVqgkshwKUO">this link</a> to download the results (file of size 100Mo approx).</p>
+<pre class="r"><code>load(&quot;dat/resHPHR_covs2_quadra_10000it_prior_inf4.RData&quot;)</code></pre>
+<p>Check out convergence.</p>
+<pre class="r"><code>par(mfrow = c(4,2))
+
+i=2
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;KK&#39;])), type = &quot;l&quot;, ylim = c(0,10), main = &quot;KK&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;KK&#39;])), col = &quot;green&quot; )
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;a.rr&#39;])), type = &quot;l&quot;, ylim = c(0,1), main = &quot;a.rr&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;b1.rr&#39;])), type = &quot;l&quot;, ylim = c(0,2), main = &quot;b1.rr&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;b2.rr&#39;])), type = &quot;l&quot;, ylim = c(0,2), main = &quot;b2.rr&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;r&#39;])), type = &quot;l&quot;, ylim = c(0,1), main = &quot;r&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;r&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;a.D&#39;])), type = &quot;l&quot;, ylim = c(0,10), main = &quot;a.D&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;a.D&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;b1.D&#39;])), type = &quot;l&quot;, ylim = c(0,10), main = &quot;b1.D&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;b1.D&#39;])), col = &quot;green&quot;)
+
+plot(as.vector(as.mcmc(res[[1]]$res[,&#39;b2.D&#39;])), type = &quot;l&quot;, ylim = c(0,10), main = &quot;b2.D&quot;)
+lines(as.vector(as.mcmc(res[[i]]$res[,&#39;b2.D&#39;])), col = &quot;green&quot;)</code></pre>
+<p>Posterior densities.</p>
+<pre class="r"><code>plot(density(as.mcmc(res[[1]]$res[,&#39;KK&#39;])), type = &quot;l&quot;, ylim = c(0,1), main = &quot;KK, prior = dunif(0,25)&quot;,xlim = c(-1,10))
+lines(density(as.mcmc(res[[2]]$res[,&#39;KK&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,5,1), col = &quot;blue&quot;, add =T)
+abline(v = 5, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;a.rr&#39;])), type = &quot;l&quot;, ylim = c(0,2), main = &quot;a.rr, prior = dlnorm(1,1)&quot;, xlim = c(-1,3))
+lines(density(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,0.5,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.4, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;b1.rr&#39;])), type = &quot;l&quot;, ylim = c(0,2), main = &quot;b1.rr, prior = dunif(0,10)&quot;, xlim = c(-1,4))
+lines(density(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,0.5,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.4, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;b2.rr&#39;])), type = &quot;l&quot;, ylim = c(0,1.5), main = &quot;b2.rr, prior = dunif(0,10)&quot;, xlim = c(-1,2))
+lines(density(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,0.5,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.6, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;r&#39;])), type = &quot;l&quot;, ylim = c(0,12), main = &quot;r, prior = dunif(0,1)&quot;, xlim = c(-0.5,1.5))
+lines(density(as.mcmc(res[[i]]$res[,&#39;r&#39;])), col = &quot;green&quot;)
+curve(dunif(x,0,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.2, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;a.D&#39;])), type = &quot;l&quot;, ylim = c(0,1.5), main = &quot;a.D, prior = dlnorm(1,1)&quot;)
+lines(density(as.mcmc(res[[i]]$res[,&#39;a.D&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,2,1), col = &quot;blue&quot;, add =T)
+abline(v = 2, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;b1.D&#39;])), type = &quot;l&quot;, ylim = c(0,1), main = &quot;b1.D, prior = dunif(0,10)&quot;)
+lines(density(as.mcmc(res[[i]]$res[,&#39;b1.D&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,0.5,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.5, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)
+
+plot(density(as.mcmc(res[[1]]$res[,&#39;b2.D&#39;])), type = &quot;l&quot;, ylim = c(0,1), main = &quot;b2.D, prior = dunif(0,10)&quot;, xlim = c(-1,11))
+lines(density(as.mcmc(res[[i]]$res[,&#39;b2.D&#39;])), col = &quot;green&quot;)
+curve(dnorm(x,0.3,1), col = &quot;blue&quot;, add =T)
+abline(v = 0.3, col = &quot;red&quot;)
+legend(&quot;topright&quot;, c(&quot;chain1&quot;, &quot;chain2&quot;, &quot;prior&quot;,&quot; true value&quot;), col = c(&quot;black&quot;,&quot;green&quot;,&quot;blue&quot;,&quot;red&quot;), lwd = 1)</code></pre>
+<p>Compute bias and MSE.</p>
+<pre class="r"><code>H &lt;- 100
+Bias &lt;- matrix(0,nrow=1, ncol = 8)
+MSE &lt;- matrix(0,nrow=1, ncol = 8)
+x &lt;- matrix(0, nrow = H, ncol =8)
+diff &lt;- matrix(0, nrow = H, ncol = 8)
+param &lt;- c(carrying_capacity, intR, betaR, betaRR, detection, intD, betaD, betaDD)
+
+#K
+for(i in 1:H){
+  x[i,1] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;KK&#39;]))
+  diff[i,1] &lt;- (x[i,1]-param[1])
+}
+
+#rr
+for(i in 1:H){
+  x[i,2] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;a.rr&#39;]))
+  diff[i,2] &lt;- (x[i,2]-param[2])
+}
+
+#b1.rr
+for(i in 1:H){
+  x[i,3] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;b1.rr&#39;]))
+  diff[i,3] &lt;- (x[i,3]-param[3])
+}
+
+#r  
+for(i in 1:H){
+  x[i,4] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;b2.rr&#39;]))
+  diff[i,4] &lt;- (x[i,4]-param[4])
+}
+
+#r  
+for(i in 1:H){
+  x[i,5] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;r&#39;]))
+  diff[i,5] &lt;- (x[i,5]-param[5])
+}
+
+#a.D    
+for(i in 1:H){
+  x[i,6] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;a.D&#39;]))
+  diff[i,6] &lt;- (x[i,6]-param[6])
+}
+
+#b1.D   
+for(i in 1:H){
+  x[i,7] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;b1.D&#39;]))
+  diff[i,7] &lt;- (x[i,7]-param[7])
+}
+
+#b2.D   
+for(i in 1:H){
+  x[i,8] &lt;- mean(as.mcmc(res[[i]]$res[,&#39;b2.D&#39;]))
+  diff[i,8] &lt;- (x[i,8]-param[8])
+}
+
+for(i in 1:length(param)) {
+  Bias[i] &lt;- ((mean(x[,i])-param[i])/param[i])*100
+  MSE[i] &lt;- mean((diff[,i])^2)
+}
+Bias</code></pre>
+<pre><code>##          [,1]     [,2]     [,3]     [,4]      [,5]     [,6]     [,7]     [,8]
+## [1,] 1.579092 10.64683 33.38791 12.84218 -1.025791 3.672924 89.27693 196.8127</code></pre>
+<pre class="r"><code>MSE</code></pre>
+<pre><code>##           [,1]       [,2]       [,3]       [,4]        [,5]       [,6]
+## [1,] 0.2176843 0.02207432 0.06204329 0.04529993 0.001404637 0.06391005
+##           [,7]      [,8]
+## [1,] 0.2166324 0.3737464</code></pre>
+<p>Visualise bias and MSE.</p>
+<pre class="r"><code>par(mfrow=c(2,4))
+
+plot(estim.median[1,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[1,],estim.25[1,],estim.975[1,])),main=&#39;Carrying capacity&#39;, xlab = &#39;bias = 1.57 % MSE = 0.22&#39;)
+segments(estim.25[1,], 1:H, estim.975[1,], 1:100)
+abline(v=carrying_capacity, lty=2, col=&#39;red&#39;)
+
+
+plot(estim.median[2,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[2,],estim.25[2,],estim.975[2,])),main=&#39;Growth rate&#39;, xlab = &#39;bias = 10.54 % MSE = 0.02&#39;)
+segments(estim.25[2,], 1:H, estim.975[2,], 1:100)
+abline(v=intR, lty=2, col=&#39;red&#39;)
+
+
+plot(estim.median[3,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[3,],estim.25[3,],estim.975[3,])),main=&#39;Effect of forest&#39;, xlab = &#39;bias = 33.39 % MSE = 0.06&#39;)
+segments(estim.25[3,], 1:H, estim.975[3,], 1:100)
+abline(v=betaR, lty=2, col=&#39;red&#39;)
+
+plot(estim.median[4,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[4,],estim.25[4,],estim.975[4,])),main=&#39;Quadratic effect of forest&#39;, xlab = &#39;bias = 12.84 % MSE = 0.05&#39;)
+segments(estim.25[4,], 1:H, estim.975[4,], 1:100)
+abline(v=betaR, lty=2, col=&#39;red&#39;)
+
+plot(estim.median[6,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[6,],estim.25[6,],estim.975[6,])),main=&#39;Diffusion coefficient&#39;, xlab = &#39;bias = 3.67 % MSE = 0.06&#39;)
+segments(estim.25[6,], 1:H, estim.975[6,], 1:100)
+abline(v=intD, lty=2, col=&#39;red&#39;)
+
+plot(estim.median[7,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[7,],estim.25[7,],estim.975[7,])),main=&#39;Effect of human density&#39;, xlab = &#39;bias = 89.28 % MSE = 0.22&#39;)
+segments(estim.25[7,], 1:H, estim.975[7,], 1:100)
+abline(v=betaD, lty=2, col=&#39;red&#39;)
+
+plot(estim.median[8,], 1:H, ylab=&#39;&#39;,xlim=range(c(estim.median[8,],estim.25[8,],estim.975[8,])),main=&#39;Quadratic effect of human density&#39;, xlab = &#39;bias = 196.82 % MSE = 0.37&#39;)
+segments(estim.25[8,], 1:H, estim.975[8,], 1:100)
+abline(v=betaDD, lty=2, col=&#39;red&#39;)</code></pre>
+<p><img src="bonnefon_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 
 
 

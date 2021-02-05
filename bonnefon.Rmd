@@ -7,6 +7,11 @@ output:
         toc_float: TRUE
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+```
+
+
 Load packages.
 ```{r}
 library(raster)
@@ -20,6 +25,7 @@ library(R2OpenBUGS)
 library(coda)
 library(plotrix)
 ```
+
 
 
 Load and format data.
@@ -76,12 +82,12 @@ colnames(OBS) <- c("OBSsite","SIMsite","area")
 ```
 
 
-```{r}
+```{r domain}
 plot(domaine)
 ```
 
 
-```{r}
+```{r domaine2, eval = FALSE}
 for (i in 1:length(dataX)){
   rcenter <-Robs
   coords = matrix(c(dataX[i]-rcenter, dataY[i]-rcenter,
@@ -382,7 +388,7 @@ load("dat/resHPHR_covs2_quadra_10000it_prior_inf4.RData")
 ```
 
 Check out convergence.
-```{r}
+```{r eval = FALSE}
 par(mfrow = c(4,2))
 
 i=2
@@ -414,7 +420,7 @@ lines(as.vector(as.mcmc(res[[i]]$res[,'b2.D'])), col = "green")
 
 
 Posterior densities.
-```{r}
+```{r eval = FALSE}
 plot(density(as.mcmc(res[[1]]$res[,'KK'])), type = "l", ylim = c(0,1), main = "KK, prior = dunif(0,25)",xlim = c(-1,10))
 lines(density(as.mcmc(res[[2]]$res[,'KK'])), col = "green")
 curve(dnorm(x,5,1), col = "blue", add =T)
