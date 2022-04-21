@@ -5,16 +5,28 @@ pagetitle: "Approche statistiques pour les variables cachées en écologie"
 
 <br>
 
-Annexes R
+Data and R code for all chapters (in French for now):
 
+1. [Trajectory Reconstruction and Behavior Identification Using Geolocation Data](gloaguen.html), Marie-Pierre Etienne and Pierre Gloaguen.
+2. [Detection of Eco-Evolutionary Processes in the Wild: Evolutionary Trade-Offs Between Life History Traits](buoro.html), Valentin Journé, Sarah Cubaynes, Julien Papaïx and Mathieu Buoro.
+3. [Studying Species Demography and Distribution in Natural Conditions: Hidden Markov Models](gimenez.html), Olivier Gimenez, Julie Louvrier, Valentin Lauret and Nina Santostasi.
+4. [Inferring Mechanistic Models in Spatial Ecology Using a Mechanistic-Statistical Approach](bonnefon.html), Julien Papaïx, Samuel Soubeyrand, Olivier Bonnefon, Emily Walker, Julie Louvrier, Etienne Klein and Lionel Roques.
+5. [Using Coupled Hidden Markov Chains to Estimate Colonization and Seed Bank Survival in a Metapopulation of Annual Plants](cheptou.html), Pierre-Olivier Cheptou, Stéphane Cordeau, Sebastian Le Coz and Nathalie Peyrard.
+6. [Using Latent Block Models to Detect Structure in Ecological Networks](aubert.html), Julie Aubert, Pierre Barbillon, Sophie Donnet and Vincent Miele.
+7. [Latent Factor Models: A Tool for Dimension Reduction in Joint Species Distribution Models](bystrova.html), Daria Bystrova, Giovanni Poggiato, Julyan Arbel and Wilfried Thuiller.
+8. [The Poisson Log-Normal Model: A Generic Framework for Analyzing Joint Abundance Distributions](chiquet.html), Julien Chiquet, Marie-Josée Cros, Mahendra Mariadassou, Nathalie Peyrard and Stéphane Robin.
+9. [Supervised Component-Based Generalized Linear Regression: Method and Extensions](mortier.html), Frédéric Mortier, Jocelyn Chauvet, Catherine Trottier, Guillaume Cornu and Xavier Bry.
+10. [Structural Equation Models for the Study of Ecosystems and Socio-Ecosystems](sancristobal.html), Fabien Laroche, Jérémy Froidevaux, Laurent Larrieu and Michel Goulard.
+
+
+- [Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation](gloaguen.html)
 - [Mise évidence des processus éco-évolutifs en milieu naturel : le cas des compromis entre traits d’histoire de vie](buoro.html)
 - [Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés](gimenez.html)
 - [Etudier la dynamique d’une population par des approches mécanistico-statistiques](bonnefon.html)
 - [Des chaines de Markov cachées couplées pour estimer la colonisation et la survie dans une métapopulation de plantes annuelles avec dormance](cheptou.html)
 - [Modèles à blocs latents pour la détection de structure dans les réseaux écologiques](aubert.html)
-- [La régression linéaire généralisée sur composantes supervisées et ses extensions](mortier.html)
 - [Modèles à facteurs latents, un outil de réduction de dimension pour les modèles de distribution d’espèce joints](bystrova.html)
 - [Le modèle Poisson log-normal: un cadre générique pour l'analyse des distributions joint d'abondance](chiquet.html)
+- [La régression linéaire généralisée sur composantes supervisées et ses extensions](mortier.html)
 - [Les modèles à équations structurelles pour l’étude des écosystèmes et socio-écosystèmes](sancristobal.html)
-- [Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation](gloaguen.html)
 

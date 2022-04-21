@@ -11,20 +11,28 @@
 
 
 
-<title>Approche statistiques pour les variables cachées en écologie</title>
+<title>Approche statistiques pour les variables cachées en
+écologie</title>
 
-<script src="site_libs/header-attrs-2.5/header-attrs.js"></script>
-<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/paper.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
-<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
-<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
 <link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
 <link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
 
@@ -38,11 +46,6 @@
     </style>
 
 <style type="text/css">code{white-space: pre;}</style>
-<style type="text/css">
-  pre:not([class]) {
-    background-color: white;
-  }
-</style>
 <script type="text/javascript">
 if (window.hljs) {
   hljs.configure({languages: []});
@@ -55,32 +58,7 @@ if (window.hljs) {
 
 
 
-<style type="text/css">
-h1 {
-  font-size: 34px;
-}
-h1.title {
-  font-size: 38px;
-}
-h2 {
-  font-size: 30px;
-}
-h3 {
-  font-size: 24px;
-}
-h4 {
-  font-size: 18px;
-}
-h5 {
-  font-size: 16px;
-}
-h6 {
-  font-size: 12px;
-}
-.table th:not([align]) {
-  text-align: left;
-}
-</style>
+
 
 <link rel="stylesheet" href="styles.css" type="text/css" />
 
@@ -91,10 +69,6 @@ h6 {
   max-width: 940px;
   margin-left: auto;
   margin-right: auto;
-}
-code {
-  color: inherit;
-  background-color: rgba(0, 0, 0, 0.04);
 }
 img {
   max-width:100%;
@@ -111,40 +85,13 @@ button.code-folding-btn:focus {
 summary {
   display: list-item;
 }
+pre code {
+  padding: 0;
+}
 </style>
 
 
 <style type="text/css">
-/* padding for bootstrap navbar */
-body {
-  padding-top: 64px;
-  padding-bottom: 40px;
-}
-/* offset scroll position for anchor links (for fixed navbar)  */
-.section h1 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
-.section h2 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
-.section h3 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
-.section h4 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
-.section h5 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
-.section h6 {
-  padding-top: 69px;
-  margin-top: -69px;
-}
 .dropdown-submenu {
   position: relative;
 }
@@ -172,7 +119,7 @@ body {
   margin-right: -10px;
 }
 .dropdown-submenu:hover>a:after {
-  border-left-color: #ffffff;
+  border-left-color: #adb5bd;
 }
 .dropdown-submenu.pull-left {
   float: none;
@@ -184,7 +131,7 @@ body {
 }
 </style>
 
-<script>
+<script type="text/javascript">
 // manage active state of menu based on current page
 $(document).ready(function () {
   // active menu anchor
@@ -195,10 +142,23 @@ $(document).ready(function () {
   var menuAnchor = $('a[href="' + href + '"]');
 
   // mark it active
-  menuAnchor.parent().addClass('active');
+  menuAnchor.tab('show');
 
   // if it's got a parent navbar menu mark it active as well
   menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
 });
 </script>
 
@@ -210,7 +170,6 @@ $(document).ready(function () {
   max-height: 500px;
   min-height: 44px;
   overflow-y: auto;
-  background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -282,12 +241,12 @@ $(document).ready(function () {
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand" href="index.html">Approche statistiques pour les variables cachées en écologie</a>
+      <a class="navbar-brand" href="index.html">Statistical Approaches for Hidden Variables in Ecology</a>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
         <li>
-  <a href="https://oliviergimenez.github.io/">coordonné par Nathalie Peyrard et Olivier Gimenez</a>
+  <a href="https://oliviergimenez.github.io/">co-edited by Nathalie Peyrard and Olivier Gimenez</a>
 </li>
 <li>
   <a href="https://github.com/oliviergimenez/code_livre_variables_cachees">
@@ -303,7 +262,7 @@ $(document).ready(function () {
   </div><!--/.container -->
 </div><!--/.navbar -->
 
-<div class="fluid-row" id="header">
+<div id="header">
 
 
 
@@ -312,18 +271,67 @@ $(document).ready(function () {
 
 
 <p><br></p>
-<p>Annexes R</p>
+<p>Data and R code for all chapters:</p>
+<ol style="list-style-type: decimal">
+<li><a href="gloaguen.html">Trajectory Reconstruction and Behavior
+Identification Using Geolocation Data</a>, Marie-Pierre Etienne and
+Pierre Gloaguen.</li>
+<li><a href="buoro.html">Detection of Eco-Evolutionary Processes in the
+Wild: Evolutionary Trade-Offs Between Life History Traits</a>, Valentin
+Journé, Sarah Cubaynes, Julien Papaïx and Mathieu Buoro.</li>
+<li><a href="gimenez.html">Studying Species Demography and Distribution
+in Natural Conditions: Hidden Markov Models</a>, Olivier Gimenez, Julie
+Louvrier, Valentin Lauret and Nina Santostasi.</li>
+<li><a href="bonnefon.html">Inferring Mechanistic Models in Spatial
+Ecology Using a Mechanistic-Statistical Approach</a>, Julien Papaïx,
+Samuel Soubeyrand, Olivier Bonnefon, Emily Walker, Julie Louvrier,
+Etienne Klein and Lionel Roques.</li>
+<li><a href="cheptou.html">Using Coupled Hidden Markov Chains to
+Estimate Colonization and Seed Bank Survival in a Metapopulation of
+Annual Plants</a>, Pierre-Olivier Cheptou, Stéphane Cordeau, Sebastian
+Le Coz and Nathalie Peyrard.</li>
+<li><a href="aubert.html">Using Latent Block Models to Detect Structure
+in Ecological Networks</a>, Julie Aubert, Pierre Barbillon, Sophie
+Donnet and Vincent Miele.</li>
+<li><a href="bystrova.html">Latent Factor Models: A Tool for Dimension
+Reduction in Joint Species Distribution Models</a>, Daria Bystrova,
+Giovanni Poggiato, Julyan Arbel and Wilfried Thuiller.</li>
+<li><a href="chiquet.html">The Poisson Log-Normal Model: A Generic
+Framework for Analyzing Joint Abundance Distributions</a>, Julien
+Chiquet, Marie-Josée Cros, Mahendra Mariadassou, Nathalie Peyrard and
+Stéphane Robin.</li>
+<li><a href="mortier.html">Supervised Component-Based Generalized Linear
+Regression: Method and Extensions</a>, Frédéric Mortier, Jocelyn
+Chauvet, Catherine Trottier, Guillaume Cornu and Xavier Bry.</li>
+<li><a href="sancristobal.html">Structural Equation Models for the Study
+of Ecosystems and Socio-Ecosystems</a>, Fabien Laroche, Jérémy
+Froidevaux, Laurent Larrieu and Michel Goulard.</li>
+</ol>
 <ul>
-<li><a href="buoro.html">Mise évidence des processus éco-évolutifs en milieu naturel : le cas des compromis entre traits d’histoire de vie</a></li>
-<li><a href="gimenez.html">Étudier la démographie et la distribution des espèces en conditions naturelles : les modèles de Markov cachés</a></li>
-<li><a href="bonnefon.html">Etudier la dynamique d’une population par des approches mécanistico-statistiques</a></li>
-<li><a href="cheptou.html">Des chaines de Markov cachées couplées pour estimer la colonisation et la survie dans une métapopulation de plantes annuelles avec dormance</a></li>
-<li><a href="aubert.html">Modèles à blocs latents pour la détection de structure dans les réseaux écologiques</a></li>
-<li><a href="mortier.html">La régression linéaire généralisée sur composantes supervisées et ses extensions</a></li>
-<li><a href="bystrova.html">Modèles à facteurs latents, un outil de réduction de dimension pour les modèles de distribution d’espèce joints</a></li>
-<li><a href="chiquet.html">Le modèle Poisson log-normal: un cadre générique pour l’analyse des distributions joint d’abondance</a></li>
-<li><a href="sancristobal.html">Les modèles à équations structurelles pour l’étude des écosystèmes et socio-écosystèmes</a></li>
-<li><a href="gloaguen.html">Reconstruction de trajectoires et identification de comportements à partir de données de géolocalisation</a></li>
+<li><a href="gloaguen.html">Reconstruction de trajectoires et
+identification de comportements à partir de données de
+géolocalisation</a></li>
+<li><a href="buoro.html">Mise évidence des processus éco-évolutifs en
+milieu naturel : le cas des compromis entre traits d’histoire de
+vie</a></li>
+<li><a href="gimenez.html">Étudier la démographie et la distribution des
+espèces en conditions naturelles : les modèles de Markov cachés</a></li>
+<li><a href="bonnefon.html">Etudier la dynamique d’une population par
+des approches mécanistico-statistiques</a></li>
+<li><a href="cheptou.html">Des chaines de Markov cachées couplées pour
+estimer la colonisation et la survie dans une métapopulation de plantes
+annuelles avec dormance</a></li>
+<li><a href="aubert.html">Modèles à blocs latents pour la détection de
+structure dans les réseaux écologiques</a></li>
+<li><a href="bystrova.html">Modèles à facteurs latents, un outil de
+réduction de dimension pour les modèles de distribution d’espèce
+joints</a></li>
+<li><a href="chiquet.html">Le modèle Poisson log-normal: un cadre
+générique pour l’analyse des distributions joint d’abondance</a></li>
+<li><a href="mortier.html">La régression linéaire généralisée sur
+composantes supervisées et ses extensions</a></li>
+<li><a href="sancristobal.html">Les modèles à équations structurelles
+pour l’étude des écosystèmes et socio-écosystèmes</a></li>
 </ul>
 
 
@@ -353,7 +361,7 @@ $(document).ready(function () {
 
 $(document).ready(function () {
   $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
+    $(this).parent().toggleClass('nav-tabs-open');
   });
 });
 </script>

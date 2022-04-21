@@ -1,9 +1,9 @@
 name: "vaRcacheesecologie"
 output_dir: "."
 navbar:
-  title: "Approche statistiques pour les variables cachées en écologie"
+  title: "Statistical Approaches for Hidden Variables in Ecology"
   left:
-    - text: "coordonné par Nathalie Peyrard et Olivier Gimenez"
+    - text: "co-edited by Nathalie Peyrard and Olivier Gimenez"
       href: https://oliviergimenez.github.io/
     - icon: fa-github fa-lg
       href: https://github.com/oliviergimenez/code_livre_variables_cachees
